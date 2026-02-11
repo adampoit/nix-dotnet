@@ -1,4 +1,7 @@
-{pkgs}: let
+{
+  pkgs,
+  hashCachePath ? ../sdk-hashes.json,
+}: let
   inherit
     (pkgs.lib)
     concatStringsSep
@@ -9,8 +12,17 @@
     foldl'
     splitString
     optionalString
+    getAttr
     ;
+  getPlatform = {}:
+    if pkgs.stdenv.isLinux
+    then "linux"
+    else if pkgs.stdenv.isDarwin
+    then "osx"
+    else throw "Unsupported platform: only Linux and macOS are supported";
 in {
+  inherit getPlatform;
+
   validateSdkVersion = version: let
     validPattern = "^[0-9]+\\.[0-9]+(\\.[0-9]+)?(-.*)?$";
   in
@@ -74,4 +86,24 @@ in {
       then json.sdk.workloadVersion
       else null;
   };
+
+  getSdkUrl = version: arch: let
+    platform = getPlatform {};
+  in "https://builds.dotnet.microsoft.com/dotnet/Sdk/${version}/dotnet-sdk-${version}-${platform}-${arch}.tar.gz";
+
+  getSdkHash = version: arch: let
+    hashCache =
+      if builtins.pathExists hashCachePath
+      then builtins.fromJSON (builtins.readFile hashCachePath)
+      else {hashes = {};};
+    platform = getPlatform {};
+    cacheKey = "${platform}-${arch}";
+    versionHashes =
+      if hasAttr version hashCache.hashes
+      then getAttr version hashCache.hashes
+      else throw "No hash found for SDK version ${version}. Run 'nix run .#prefetch-sdk ${version}' to compute and cache the hash.";
+  in
+    if hasAttr cacheKey versionHashes
+    then getAttr cacheKey versionHashes
+    else throw "No hash found for SDK version ${version} on ${cacheKey}. Run 'nix run .#prefetch-sdk ${version}' to compute and cache the hash.";
 }

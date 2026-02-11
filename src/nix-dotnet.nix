@@ -1,5 +1,8 @@
-{pkgs}: let
-  lib = import ./lib.nix {inherit pkgs;};
+{
+  pkgs,
+  hashCachePath ? ../sdk-hashes.json,
+}: let
+  lib = import ./lib.nix {inherit pkgs hashCachePath;};
 
   inherit
     (lib)
@@ -9,62 +12,61 @@
     buildWorkloadCommands
     sanitizePname
     readGlobalJson
+    getSdkUrl
+    getSdkHash
     ;
-
-  defaultInstallScriptUrl = "https://dot.net/v1/dotnet-install.sh";
-  defaultInstallScriptSha256 = "0hp4gjss641gabh24wf1xsxp9y1vb48fna5vc9ag24rp614nhahh";
 
   mkDotnetSdk = {
     sdkVersion,
     workloads ? [],
-    installScriptUrl ? defaultInstallScriptUrl,
-    installScriptSha256 ? defaultInstallScriptSha256,
   }: let
     validatedSdkVersion = validateSdkVersion sdkVersion;
     validatedWorkloads = map validateWorkload workloads;
     workloadNames = buildWorkloadNames validatedWorkloads;
     workloadCommands = buildWorkloadCommands validatedWorkloads;
-
-    installScript = pkgs.fetchurl {
-      url = installScriptUrl;
-      sha256 = installScriptSha256;
-    };
   in
     pkgs.stdenv.mkDerivation {
       pname = sanitizePname "dotnet-sdk-${validatedSdkVersion}-${workloadNames}-packs";
       version = validatedSdkVersion;
 
-      src = null;
-      dontUnpack = true;
+      src = let
+        arch =
+          if pkgs.stdenv.isx86_64
+          then "x64"
+          else if pkgs.stdenv.isAarch64
+          then "arm64"
+          else throw "Unsupported architecture: only x86_64 and aarch64 are supported";
+        sdkUrl = getSdkUrl validatedSdkVersion arch;
+        sdkHash = getSdkHash validatedSdkVersion arch;
+      in
+        pkgs.fetchurl {
+          url = sdkUrl;
+          sha256 = sdkHash;
+        };
 
       nativeBuildInputs = with pkgs; [
-        unzip
         gnutar
-        bash
         patchelf
         cacert
-        curl
       ];
+
+      unpackPhase = ''
+        runHook preUnpack
+        mkdir -p "$out"
+        tar -xzf "$src" -C "$out"
+        runHook postUnpack
+      '';
+
+      dontConfigure = true;
 
       buildPhase = ''
         runHook preBuild
 
-        mkdir -p "$out"
-
-        echo "Using verified dotnet-install script from ${installScriptUrl}"
-        cp ${installScript} dotnet-install.sh
-        chmod +x dotnet-install.sh
-
-        echo "Installing .NET SDK ${validatedSdkVersion} into $out"
-        bash ./dotnet-install.sh \
-          --version "${validatedSdkVersion}" \
-          --install-dir "$out" \
-          --no-path
-
         if [ ! -f "$out/dotnet" ]; then
-          echo "ERROR: dotnet executable not found after installation"
+          echo "ERROR: dotnet executable not found after extraction"
           exit 1
         fi
+
         export DOTNET_ROOT="$out"
         export PATH="$out:$PATH"
         export DOTNET_CLI_HOME="$out/.dotnet-cli-home"
@@ -109,7 +111,7 @@
         homepage = "https://dotnet.microsoft.com/";
         license = licenses.mit;
         maintainers = [];
-        platforms = platforms.all;
+        platforms = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
       };
     };
 

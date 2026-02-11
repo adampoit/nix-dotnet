@@ -134,4 +134,30 @@
       value = false;
     };
   };
+
+  testGetSdkUrl = {
+    expr = lib.getSdkUrl "10.0.100" "x64";
+    expected = "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.100/dotnet-sdk-10.0.100-linux-x64.tar.gz";
+  };
+
+  testGetSdkHashSuccess = {
+    expr = lib.getSdkHash "10.0.103" "x64";
+    expected = "03xgjglqfbjjdzh3yp3lizb2cl45bbbf9nzg73x00a7ca0qizp44";
+  };
+
+  testGetSdkHashMissingVersion = {
+    expr = builtins.tryEval (lib.getSdkHash "99.99.999" "x64");
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testGetSdkHashMissingArch = {
+    expr = builtins.tryEval (lib.getSdkHash "10.0.103" "invalid-arch");
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
 }
