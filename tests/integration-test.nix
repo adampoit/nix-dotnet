@@ -1,0 +1,72 @@
+{
+  pkgs,
+  dotnet,
+}: let
+  dotnetSdk = dotnet.mkDotnet {
+    globalJsonPath = ./integration/global.json;
+    workloads = [];
+  };
+in
+  pkgs.stdenv.mkDerivation {
+    pname = "dotnet-nix-integration-test";
+    version = "1.0.0";
+
+    src = ./integration;
+
+    nativeBuildInputs = [
+      pkgs.cacert
+    ];
+
+    # Configure .NET CLI environment (absolute paths required)
+    DOTNET_ROOT = "${dotnetSdk}";
+
+    buildPhase = ''
+      runHook preBuild
+
+      # Add dotnet to PATH
+      export PATH="${dotnetSdk}:$PATH"
+
+      # Use absolute paths for .NET CLI environment
+      export DOTNET_CLI_HOME="$PWD/.dotnet-cli-home"
+      export NUGET_PACKAGES="$PWD/.nuget/packages"
+      export NUGET_HTTP_CACHE_PATH="$PWD/.nuget/http-cache"
+      export HOME="$PWD/.home"
+
+      mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH" "$HOME"
+
+      echo "=== Integration Test: Building .NET Project ==="
+      echo "SDK Version: $(dotnet --version)"
+      echo ""
+
+      # Restore NuGet packages
+      echo "Step 1: Restoring NuGet packages..."
+      dotnet restore TestSolution.slnx
+
+      # Build the solution
+      echo ""
+      echo "Step 2: Building solution..."
+      dotnet build TestSolution.slnx --configuration Release --no-restore
+
+      # Run the tests
+      echo ""
+      echo "Step 3: Running tests..."
+      dotnet test TestApp.Tests/TestApp.Tests.csproj \
+        --configuration Release \
+        --no-build \
+        --verbosity normal
+
+      echo ""
+      echo "=== Integration Test Passed ==="
+
+      runHook postBuild
+    '';
+
+    installPhase = ''
+      runHook preInstall
+
+      mkdir -p $out
+      echo "Integration test completed successfully" > $out/result
+
+      runHook postInstall
+    '';
+  }
