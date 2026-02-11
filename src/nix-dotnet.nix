@@ -49,6 +49,7 @@
         patchelf
         cacert
         icu
+        openssl
       ];
 
       unpackPhase = ''
@@ -75,7 +76,7 @@
             if ! patchelf --set-interpreter "$INTERP" "$f" 2>/dev/null; then
               echo "WARN: Failed to set interpreter for $f"
             fi
-            if ! patchelf --set-rpath "${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.icu}/lib" "$f" 2>/dev/null; then
+            if ! patchelf --set-rpath "${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.icu}/lib:${pkgs.openssl}/lib" "$f" 2>/dev/null; then
               echo "WARN: Failed to set rpath for $f"
             fi
           fi
@@ -87,7 +88,7 @@
         export NUGET_PACKAGES="$out/.nuget/packages"
         export NUGET_HTTP_CACHE_PATH="$out/.nuget/http-cache"
         export HOME="$out/.home"
-        export LD_LIBRARY_PATH="${pkgs.icu}/lib"
+        export LD_LIBRARY_PATH="${pkgs.icu}/lib:${pkgs.openssl}/lib"
 
         mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH" "$HOME"
 
