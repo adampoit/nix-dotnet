@@ -67,6 +67,19 @@
           exit 1
         fi
 
+        # Patch binaries before use (required for sandboxed builds)
+        find "$out" -type f \( -executable -o -name "*.so" \) 2>/dev/null | while read f; do
+          if patchelf --print-interpreter "$f" >/dev/null 2>&1; then
+            INTERP="$(cat $NIX_CC/nix-support/dynamic-linker)"
+            if ! patchelf --set-interpreter "$INTERP" "$f" 2>/dev/null; then
+              echo "WARN: Failed to set interpreter for $f"
+            fi
+            if ! patchelf --set-rpath "${pkgs.stdenv.cc.cc.lib}/lib" "$f" 2>/dev/null; then
+              echo "WARN: Failed to set rpath for $f"
+            fi
+          fi
+        done
+
         export DOTNET_ROOT="$out"
         export PATH="$out:$PATH"
         export DOTNET_CLI_HOME="$out/.dotnet-cli-home"
@@ -82,24 +95,6 @@
         echo "SDK Version: $($out/dotnet --version)"
 
         runHook postBuild
-      '';
-
-      fixupPhase = ''
-        runHook preFixup
-
-        find "$out" -type f \( -executable -o -name "*.so" \) 2>/dev/null | while read f; do
-          if patchelf --print-interpreter "$f" >/dev/null 2>&1; then
-            INTERP="$(cat $NIX_CC/nix-support/dynamic-linker)"
-            if ! patchelf --set-interpreter "$INTERP" "$f" 2>/dev/null; then
-              echo "WARN: Failed to set interpreter for $f"
-            fi
-            if ! patchelf --set-rpath "${pkgs.stdenv.cc.cc.lib}/lib" "$f" 2>/dev/null; then
-              echo "WARN: Failed to set rpath for $f"
-            fi
-          fi
-        done
-
-        runHook postFixup
       '';
 
       passthru = {
