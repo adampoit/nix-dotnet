@@ -24,11 +24,19 @@
           basic-example = dotnet.mkDotnet {
             globalJsonPath = ./global.json;
             workloads = [];
+            outputHash =
+              if system == "aarch64-darwin"
+              then "sha256-k7etFSnLiKFSKn5zVhp9Oom2yPRIAlkY/fKmwUG0pBI="
+              else null; # Compute on each target system (e.g., nix build .#basic-example)
           };
 
           workload-example = dotnet.mkDotnet {
             globalJsonPath = ./global.json;
             workloads = ["android"];
+            outputHash =
+              if system == "aarch64-darwin"
+              then "sha256-xbWrAYckiJF4xhbsXvCJL3gLrcLXcIxrlsHwM7tGdGU="
+              else null; # Compute on each target system (e.g., nix build .#workload-example)
           };
         };
 

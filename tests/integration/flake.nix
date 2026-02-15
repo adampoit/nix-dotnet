@@ -17,6 +17,7 @@
       dotnetSdk = dotnet.mkDotnet {
         globalJsonPath = ./global.json;
         workloads = [];
+        outputHash = null;
       };
     in {
       packages.integration-test = pkgs.stdenv.mkDerivation {

@@ -28,19 +28,28 @@ in {
     then "none"
     else concatStringsSep "-" (map (w: w.name) workloads);
 
+  buildWorkloadPnameSuffix = workloads:
+    if workloads == []
+    then "none"
+    else
+      concatStringsSep "-" (map
+        (w:
+          if hasAttr "version" w && w.version != null
+          then "${w.name}-${w.version}"
+          else w.name)
+        workloads);
+
   buildWorkloadCommands = workloads:
     if workloads == []
     then "echo 'No workloads to install'"
     else
       concatStringsSep "\n\n" (map
         (w: let
-          versionFlag =
-            if hasAttr "version" w
-            then "--version ${w.version}"
-            else "";
+          hasVersion = hasAttr "version" w && w.version != null;
+          versionArg = optionalString hasVersion " --version ${w.version}";
         in ''
-          echo "Installing workload ${w.name}${optionalString (hasAttr "version" w) " (version=${w.version})"}"
-          "$out/dotnet" workload install ${w.name} ${versionFlag}
+          echo "Installing workload ${w.name}"
+          "$out/dotnet" workload install ${w.name}${versionArg} --skip-manifest-update
         '')
         workloads);
 

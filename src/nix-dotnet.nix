@@ -6,6 +6,7 @@
     validateSdkVersion
     validateWorkload
     buildWorkloadNames
+    buildWorkloadPnameSuffix
     buildWorkloadCommands
     sanitizePname
     readGlobalJson
@@ -19,10 +20,12 @@
     workloads ? [],
     installScriptUrl ? defaultInstallScriptUrl,
     installScriptSha256 ? defaultInstallScriptSha256,
+    outputHash,
   }: let
     validatedSdkVersion = validateSdkVersion sdkVersion;
     validatedWorkloads = map validateWorkload workloads;
     workloadNames = buildWorkloadNames validatedWorkloads;
+    workloadPnameSuffix = buildWorkloadPnameSuffix validatedWorkloads;
     workloadCommands = buildWorkloadCommands validatedWorkloads;
 
     installScript = pkgs.fetchurl {
@@ -31,19 +34,24 @@
     };
   in
     pkgs.stdenv.mkDerivation {
-      pname = sanitizePname "dotnet-sdk-${validatedSdkVersion}-${workloadNames}-packs";
+      pname = sanitizePname "dotnet-sdk-${workloadPnameSuffix}";
       version = validatedSdkVersion;
 
       src = null;
       dontUnpack = true;
 
+      outputHashMode = "recursive";
+      outputHashAlgo = "sha256";
+      inherit outputHash;
+
       nativeBuildInputs = with pkgs; [
-        unzip
-        gnutar
-        bash
-        patchelf
-        cacert
         curl
+        cacert
+        patchelf
+        removeReferencesTo
+        icu
+        openssl
+        zlib
       ];
 
       buildPhase = ''
@@ -65,40 +73,59 @@
           echo "ERROR: dotnet executable not found after installation"
           exit 1
         fi
+
+        # Apply patchelf so dotnet can find libraries
+        echo "Applying patchelf to dotnet binary..."
+        INTERP="$(cat $NIX_CC/nix-support/dynamic-linker)"
+        find "$out" -type f \( -executable -o -name "*.so" \) 2>/dev/null | while read f; do
+          if patchelf --print-interpreter "$f" >/dev/null 2>&1; then
+            if ! patchelf --set-interpreter "$INTERP" "$f" 2>/dev/null; then
+              echo "WARN: Failed to set interpreter for $f"
+            fi
+            if ! patchelf --set-rpath "${pkgs.lib.makeLibraryPath [pkgs.icu pkgs.openssl pkgs.zlib pkgs.stdenv.cc.cc]}" "$f" 2>/dev/null; then
+              echo "WARN: Failed to set rpath for $f"
+            fi
+          fi
+        done
+
         export DOTNET_ROOT="$out"
         export PATH="$out:$PATH"
         export DOTNET_CLI_HOME="$out/.dotnet-cli-home"
         export NUGET_PACKAGES="$out/.nuget/packages"
         export NUGET_HTTP_CACHE_PATH="$out/.nuget/http-cache"
         export HOME="$out/.home"
+        export DOTNET_CLI_TELEMETRY_OPTOUT=1
+        export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+        export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [pkgs.icu pkgs.openssl pkgs.zlib pkgs.stdenv.cc.cc]}"
 
-        mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH" "$HOME"
+        mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH"
 
         ${workloadCommands}
 
         echo "Installation complete"
         echo "SDK Version: $($out/dotnet --version)"
 
+        # Remove self-references from workload metadata
+        # The metadata directory contains JSON files with store path references
+        if [ -d "$out/metadata" ]; then
+          echo "Removing store path references from workload metadata..."
+          find "$out/metadata" -type f \( -name "*.json" -o -name "*.txt" \) 2>/dev/null | while read f; do
+            # Replace nix store paths with just the filename to avoid references
+            sed -i "s|/nix/store/[^/]*/|$out/|g" "$f" 2>/dev/null || true
+          done
+        fi
+
+        # Remove any remaining self-references from all files so fixed-output
+        # derivations do not retain references to their own store path.
+        echo "Removing remaining self-references from output..."
+        find "$out" -type f 2>/dev/null | while read f; do
+          remove-references-to -t "$out" "$f" 2>/dev/null || true
+        done
+
         runHook postBuild
       '';
 
-      fixupPhase = ''
-        runHook preFixup
-
-        find "$out" -type f \( -executable -o -name "*.so" \) 2>/dev/null | while read f; do
-          if patchelf --print-interpreter "$f" >/dev/null 2>&1; then
-            INTERP="$(cat $NIX_CC/nix-support/dynamic-linker)"
-            if ! patchelf --set-interpreter "$INTERP" "$f" 2>/dev/null; then
-              echo "WARN: Failed to set interpreter for $f"
-            fi
-            if ! patchelf --set-rpath "${pkgs.stdenv.cc.cc.lib}/lib" "$f" 2>/dev/null; then
-              echo "WARN: Failed to set rpath for $f"
-            fi
-          fi
-        done
-
-        runHook postFixup
-      '';
+      dontFixup = true;
 
       passthru = {
         inherit sdkVersion workloads;
@@ -116,6 +143,7 @@
   mkDotnet = {
     globalJsonPath,
     workloads ? [],
+    outputHash,
   }: let
     globalConfig = readGlobalJson globalJsonPath;
     sdkVersion = globalConfig.sdkVersion;
@@ -132,7 +160,7 @@
     then throw "Could not read SDK version from ${toString globalJsonPath}. Make sure the file exists and has a 'sdk.version' field."
     else
       mkDotnetSdk {
-        inherit sdkVersion;
+        inherit sdkVersion outputHash;
         workloads = workloadObjects;
       };
 in {

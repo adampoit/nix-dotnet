@@ -17,6 +17,8 @@
         (nix-dotnet.lib.${system}.mkDotnet {
           globalJsonPath = ./global.json;
           workloads = ["android" "maui"];
+          # Required: fixed-output hash (placeholder below; replace after first build)
+          outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
         })
       ];
 
