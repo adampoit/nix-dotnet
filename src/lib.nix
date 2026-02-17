@@ -8,7 +8,6 @@
     replaceStrings
     foldl'
     splitString
-    optionalString
     ;
 in {
   validateSdkVersion = version: let
@@ -46,10 +45,13 @@ in {
       concatStringsSep "\n\n" (map
         (w: let
           hasVersion = hasAttr "version" w && w.version != null;
-          versionArg = optionalString hasVersion " --version ${w.version}";
+          installFlags =
+            if hasVersion
+            then " --version ${w.version}"
+            else " --skip-manifest-update";
         in ''
           echo "Installing workload ${w.name}"
-          "$out/dotnet" workload install ${w.name}${versionArg} --skip-manifest-update
+          "$out/dotnet" workload install ${w.name}${installFlags}
         '')
         workloads);
 

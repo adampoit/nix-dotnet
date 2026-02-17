@@ -118,7 +118,7 @@
     ];
     expected = ''
       echo "Installing workload android"
-      "$out/dotnet" workload install android --version 10.0.100.1 --skip-manifest-update
+      "$out/dotnet" workload install android --version 10.0.100.1
     '';
   };
 

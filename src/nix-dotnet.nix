@@ -74,20 +74,6 @@
           exit 1
         fi
 
-        # Apply patchelf so dotnet can find libraries
-        echo "Applying patchelf to dotnet binary..."
-        INTERP="$(cat $NIX_CC/nix-support/dynamic-linker)"
-        find "$out" -type f \( -executable -o -name "*.so" \) 2>/dev/null | while read f; do
-          if patchelf --print-interpreter "$f" >/dev/null 2>&1; then
-            if ! patchelf --set-interpreter "$INTERP" "$f" 2>/dev/null; then
-              echo "WARN: Failed to set interpreter for $f"
-            fi
-            if ! patchelf --set-rpath "${pkgs.lib.makeLibraryPath [pkgs.icu pkgs.openssl pkgs.zlib pkgs.stdenv.cc.cc]}" "$f" 2>/dev/null; then
-              echo "WARN: Failed to set rpath for $f"
-            fi
-          fi
-        done
-
         export DOTNET_ROOT="$out"
         export PATH="$out:$PATH"
         export DOTNET_CLI_HOME="$out/.dotnet-cli-home"
@@ -96,11 +82,28 @@
         export HOME="$out/.home"
         export DOTNET_CLI_TELEMETRY_OPTOUT=1
         export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+        export DOTNET_GENERATE_ASPNET_CERTIFICATE=0
         export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [pkgs.icu pkgs.openssl pkgs.zlib pkgs.stdenv.cc.cc]}"
 
         mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH"
 
+        originalDotnetInterp=""
+        if [ "${workloadNames}" != "none" ]; then
+          originalDotnetInterp="$(patchelf --print-interpreter "$out/dotnet")"
+          patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$out/dotnet"
+        fi
+
         ${workloadCommands}
+
+        if [ "${workloadNames}" != "none" ]; then
+          patchelf --set-interpreter "$originalDotnetInterp" "$out/dotnet"
+        fi
+
+        if [ -d "$out/metadata/workloads" ]; then
+          find "$out/metadata/workloads" -type d -name history -prune -exec rm -rf {} +
+        fi
+
+        rm -rf "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH" "$HOME"
 
         echo "Installation complete"
         echo "SDK Version: $($out/dotnet --version)"

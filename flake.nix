@@ -27,6 +27,8 @@
             outputHash =
               if system == "aarch64-darwin"
               then "sha256-k7etFSnLiKFSKn5zVhp9Oom2yPRIAlkY/fKmwUG0pBI="
+              else if system == "x86_64-linux"
+              then "sha256-zavpTqfPO/x1YFvGww+QBzyK70eGi50TaA5wkaGziFg="
               else null; # Compute on each target system (e.g., nix build .#basic-example)
           };
 
@@ -36,6 +38,8 @@
             outputHash =
               if system == "aarch64-darwin"
               then "sha256-xbWrAYckiJF4xhbsXvCJL3gLrcLXcIxrlsHwM7tGdGU="
+              else if system == "x86_64-linux"
+              then "sha256-R6+gCgcfrTv1NYQyI0/3YXmjDRvvooPEOjCR59WSpfk="
               else null; # Compute on each target system (e.g., nix build .#workload-example)
           };
         };
