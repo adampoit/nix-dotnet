@@ -1,11 +1,12 @@
 {
   pkgs,
   dotnet,
+  outputHash,
 }: let
   dotnetSdk = dotnet.mkDotnet {
     globalJsonPath = ./integration/global-workloads.json;
     workloads = ["android"];
-    outputHash = null;
+    inherit outputHash;
   };
 in
   pkgs.stdenv.mkDerivation {

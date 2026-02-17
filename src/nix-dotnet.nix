@@ -9,6 +9,7 @@
     buildWorkloadPnameSuffix
     buildWorkloadCommands
     sanitizePname
+    validateOutputHash
     readGlobalJson
     ;
 
@@ -24,6 +25,7 @@
   }: let
     validatedSdkVersion = validateSdkVersion sdkVersion;
     validatedWorkloads = map validateWorkload workloads;
+    validatedOutputHash = validateOutputHash outputHash;
     workloadNames = buildWorkloadNames validatedWorkloads;
     workloadPnameSuffix = buildWorkloadPnameSuffix validatedWorkloads;
     workloadCommands = buildWorkloadCommands validatedWorkloads;
@@ -42,7 +44,7 @@
 
       outputHashMode = "recursive";
       outputHashAlgo = "sha256";
-      inherit outputHash;
+      outputHash = validatedOutputHash;
 
       nativeBuildInputs = with pkgs; [
         curl

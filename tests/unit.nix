@@ -37,10 +37,12 @@
     }
   '';
 
-  mkDotnetFrom = globalJsonPath: workloads:
+  validOutputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
+  mkDotnetFrom = globalJsonPath: workloads: outputHash:
     dotnet.mkDotnet {
       inherit globalJsonPath workloads;
-      outputHash = null;
+      inherit outputHash;
     };
 in {
   testValidateSdkVersionBasic = {
@@ -237,6 +239,27 @@ in {
     };
   };
 
+  testValidateOutputHashValid = {
+    expr = lib.validateOutputHash validOutputHash;
+    expected = validOutputHash;
+  };
+
+  testValidateOutputHashNull = {
+    expr = builtins.tryEval (lib.validateOutputHash null);
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testValidateOutputHashEmpty = {
+    expr = builtins.tryEval (lib.validateOutputHash "");
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
   testReadGlobalJsonWithWorkloadVersion = {
     expr = lib.readGlobalJson validGlobalJson;
     expected = {
@@ -262,30 +285,32 @@ in {
   };
 
   testMkDotnetVersionFromGlobalJson = {
-    expr = (mkDotnetFrom validGlobalJson []).version;
+    expr = (mkDotnetFrom validGlobalJson [] validOutputHash).version;
     expected = "10.0.103";
   };
 
   testMkDotnetPnameWithVersionedWorkloads = {
     expr =
       (mkDotnetFrom validGlobalJson [
-        "android"
-        "ios"
-      ]).pname;
+          "android"
+          "ios"
+        ]
+        validOutputHash).pname;
     expected = "dotnet-sdk-android-10.0.100.1-ios-10.0.100.1";
   };
 
   testMkDotnetPnameWithoutWorkloadVersion = {
-    expr = (mkDotnetFrom globalJsonWithoutWorkloadVersion ["android"]).pname;
+    expr = (mkDotnetFrom globalJsonWithoutWorkloadVersion ["android"] validOutputHash).pname;
     expected = "dotnet-sdk-android";
   };
 
   testMkDotnetPassthruWorkloads = {
     expr =
       (mkDotnetFrom validGlobalJson [
-        "android"
-        "ios"
-      ]).passthru.workloads;
+          "android"
+          "ios"
+        ]
+        validOutputHash).passthru.workloads;
     expected = [
       {
         name = "android";
@@ -299,7 +324,7 @@ in {
   };
 
   testMkDotnetMissingSdkVersion = {
-    expr = builtins.tryEval (mkDotnetFrom globalJsonMissingSdkVersion []);
+    expr = builtins.tryEval (mkDotnetFrom globalJsonMissingSdkVersion [] validOutputHash);
     expected = {
       success = false;
       value = false;
@@ -307,7 +332,7 @@ in {
   };
 
   testMkDotnetInvalidSdkVersion = {
-    expr = builtins.tryEval (mkDotnetFrom globalJsonInvalidSdkVersion []);
+    expr = builtins.tryEval (mkDotnetFrom globalJsonInvalidSdkVersion [] validOutputHash);
     expected = {
       success = false;
       value = false;
