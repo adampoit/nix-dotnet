@@ -76,6 +76,64 @@
     expected = "android-ios-maui";
   };
 
+  testBuildWorkloadPnameSuffixEmpty = {
+    expr = lib.buildWorkloadPnameSuffix [];
+    expected = "none";
+  };
+
+  testBuildWorkloadPnameSuffixSingleWithVersion = {
+    expr = lib.buildWorkloadPnameSuffix [
+      {
+        name = "android";
+        version = "10.0.100.1";
+      }
+    ];
+    expected = "android-10.0.100.1";
+  };
+
+  testBuildWorkloadPnameSuffixMultipleMixed = {
+    expr = lib.buildWorkloadPnameSuffix [
+      {
+        name = "android";
+        version = "10.0.100.1";
+      }
+      {
+        name = "ios";
+      }
+    ];
+    expected = "android-10.0.100.1-ios";
+  };
+
+  testBuildWorkloadCommandsEmpty = {
+    expr = lib.buildWorkloadCommands [];
+    expected = "echo 'No workloads to install'";
+  };
+
+  testBuildWorkloadCommandsWithVersion = {
+    expr = lib.buildWorkloadCommands [
+      {
+        name = "android";
+        version = "10.0.100.1";
+      }
+    ];
+    expected = ''
+      echo "Installing workload android"
+      "$out/dotnet" workload install android --version 10.0.100.1
+    '';
+  };
+
+  testBuildWorkloadCommandsWithoutVersion = {
+    expr = lib.buildWorkloadCommands [
+      {
+        name = "android";
+      }
+    ];
+    expected = ''
+      echo "Installing workload android"
+      "$out/dotnet" workload install android --skip-manifest-update
+    '';
+  };
+
   testSanitizePnameBasic = {
     expr = lib.sanitizePname "dotnet-sdk-10.0.100-none-packs";
     expected = "dotnet-sdk-10.0.100-none-packs";

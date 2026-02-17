@@ -42,6 +42,7 @@ A Nix module that reads your `global.json` file and builds a .NET SDK derivation
           (nix-dotnet.lib.${system}.mkDotnet {
             globalJsonPath = ./global.json;
             workloads = [ "android" "maui" ];
+            outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
           })
         ];
       };
@@ -49,7 +50,7 @@ A Nix module that reads your `global.json` file and builds a .NET SDK derivation
 }
 ```
 
-That's it! The SDK version and all workload versions come from your `global.json`.
+The SDK/workload versions come from your `global.json`, and `outputHash` pins the final SDK output for reproducibility.
 
 ## API Reference
 
@@ -65,8 +66,54 @@ nix-dotnet.lib.${system}.mkDotnet {
   # Optional: List of workload names to install
   # Versions are read from global.json's workloadVersion field
   workloads = [ "android" "ios" "maui" ];
+
+  # Required: Fixed-output derivation hash for reproducibility
+  # Use a placeholder first, then replace with the hash from the build error
+  outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 }
 ```
+
+### Fixed-Output Derivations (Reproducible Builds)
+
+`mkDotnet` uses Nix fixed-output derivations. You must provide `outputHash`, which pins the exact hash of the installed SDK and ensures that:
+
+- The build is 100% reproducible across machines and time
+- No network access is required after the first successful build
+- The output can be cached and distributed via binary caches
+
+#### Using Fixed-Output Mode
+
+1. Set `outputHash` to a placeholder:
+
+```nix
+nix-dotnet.lib.${system}.mkDotnet {
+  globalJsonPath = ./global.json;
+  workloads = [];
+  outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+}
+```
+
+2. Build (it will fail and report the correct hash):
+
+```bash
+nix build .#my-sdk
+# Error: hash mismatch...
+# got: sha256-abc123...
+```
+
+3. Update with the correct hash:
+
+```nix
+outputHash = "sha256-abc123...";
+```
+
+4. Rebuild - now uses the binary cache!
+
+#### Important Notes
+
+- **Workloads**: Both SDK-only and workload installations support fixed-output derivations. The workload metadata (which contained store path references) is automatically removed during the build process.
+- **Cross-compilation limitation**: Workload installation requires executing the `dotnet` binary during the build. This means you cannot build workload-enabled SDKs for a different platform (e.g., building Linux workloads on macOS). Workload builds must be done natively on the target platform.
+- **Hash changes**: If Microsoft updates the SDK or workload packs, the hash will change. This is expected and ensures reproducibility.
 
 **Required global.json format:**
 
