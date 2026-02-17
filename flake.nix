@@ -18,6 +18,22 @@
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
         dotnet = import ./src/nix-dotnet.nix {inherit pkgs;};
+        unitTests = import ./tests/unit.nix {
+          lib = dotnet.internal;
+          inherit dotnet;
+        };
+
+        unitTestAssertions =
+          builtins.map
+          (
+            name: let
+              test = unitTests.${name};
+            in
+              if test.expr == test.expected
+              then true
+              else throw "Unit test failed: ${name}"
+          )
+          (builtins.attrNames unitTests);
       in {
         lib = dotnet;
         packages = {
@@ -62,15 +78,15 @@
               touch $out
             ";
 
-          unit-tests =
-            pkgs.runCommand "unit-tests" {}
-            ''
-              ${pkgs.nix}/bin/nix-instantiate --eval --strict ${./tests/unit.nix} \
-                --arg lib "import ${./src/lib.nix} { pkgs = import ${nixpkgs} { system = \"${system}\"; }; }" 2>&1 | tee $out
-              echo "All tests evaluate successfully" >> $out
-            '';
+          unit-tests = builtins.deepSeq unitTestAssertions (pkgs.runCommand "unit-tests" {} ''
+            echo "${toString (builtins.length (builtins.attrNames unitTests))} unit tests passed" > $out
+          '');
 
           integration-test = import ./tests/integration-test.nix {
+            inherit pkgs dotnet;
+          };
+
+          integration-workload-test = import ./tests/integration-workload-test.nix {
             inherit pkgs dotnet;
           };
         };
@@ -88,8 +104,13 @@
         };
       };
 
-      tests = import ./tests/unit.nix {
-        lib = import ./src/lib.nix {pkgs = nixpkgs.legacyPackages.x86_64-linux;};
-      };
+      tests = let
+        pkgs = nixpkgs.legacyPackages.x86_64-linux;
+        dotnet = import ./src/nix-dotnet.nix {inherit pkgs;};
+      in
+        import ./tests/unit.nix {
+          lib = dotnet.internal;
+          inherit dotnet;
+        };
     };
 }

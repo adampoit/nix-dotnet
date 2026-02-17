@@ -168,6 +168,9 @@ nix run github:nix-community/nix-unit -- --flake '.#tests'
 # Run integration test (slow - builds .NET SDK and runs xUnit tests)
 nix build .#checks.<system>.integration-test --no-link
 
+# Run workload integration test (slow - validates installed workloads)
+nix build .#checks.<system>.integration-workload-test --no-link
+
 # Run all checks including formatting and tests
 nix flake check
 
@@ -178,8 +181,9 @@ nix build .#workload-example --no-link
 
 ### Test Structure
 
-- **Unit tests** (`tests/unit.nix`): Fast pure Nix tests for validation/parsing logic (17 tests)
-- **Integration tests** (`tests/integration/`): Full .NET project build and xUnit test execution (7 tests)
+- **Unit tests** (`tests/unit.nix`): Fast pure Nix tests for validation/parsing, JSON parsing, and mkDotnet derivation behavior
+- **Integration tests** (`tests/integration/`): Full .NET project restore/build/test against the generated SDK
+- **Workload integration tests** (`tests/integration-workload-test.nix`): Validates workload installation and then runs restore/build/test in locked mode
   - Located in `tests/integration/` directory
   - Builds a real .NET SDK using this module
   - Runs xUnit tests to verify the SDK works correctly

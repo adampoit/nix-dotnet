@@ -53,7 +53,7 @@
 
           # Restore NuGet packages
           echo "Step 1: Restoring NuGet packages..."
-          dotnet restore TestSolution.slnx
+          dotnet restore TestSolution.slnx --locked-mode
 
           # Build the solution
           echo ""

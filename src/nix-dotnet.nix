@@ -87,17 +87,21 @@
 
         mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH"
 
-        originalDotnetInterp=""
-        if [ "${workloadNames}" != "none" ]; then
-          originalDotnetInterp="$(patchelf --print-interpreter "$out/dotnet")"
-          patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$out/dotnet"
-        fi
+        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+          originalDotnetInterp=""
+          if [ "${workloadNames}" != "none" ]; then
+            originalDotnetInterp="$(patchelf --print-interpreter "$out/dotnet")"
+            patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$out/dotnet"
+          fi
+        ''}
 
         ${workloadCommands}
 
-        if [ "${workloadNames}" != "none" ]; then
-          patchelf --set-interpreter "$originalDotnetInterp" "$out/dotnet"
-        fi
+        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+          if [ "${workloadNames}" != "none" ]; then
+            patchelf --set-interpreter "$originalDotnetInterp" "$out/dotnet"
+          fi
+        ''}
 
         if [ -d "$out/metadata/workloads" ]; then
           find "$out/metadata/workloads" -type d -name history -prune -exec rm -rf {} +
