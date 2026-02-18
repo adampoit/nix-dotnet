@@ -1,17 +1,10 @@
 # nix-dotnet
 
-A Nix module that reads your `global.json` file and builds a .NET SDK derivation with exactly the versions you specify. **Your global.json is the single source of truth.**
-
-## Features
-
-- **Single source of truth**: Everything comes from your `global.json` file
-- **Workload support**: Install .NET workloads (MAUI, Android, iOS, etc.)
-- **Reproducible builds**: Pure Nix derivations ensure consistent environments
-- **Simple API**: Just specify workload names, versions come from global.json
+A Nix module that reads your `global.json` and builds a reproducible .NET SDK derivation.
 
 ## Quick Start
 
-### 1. Create your global.json
+**1. Create global.json:**
 
 ```json
 {
@@ -23,7 +16,7 @@ A Nix module that reads your `global.json` file and builds a .NET SDK derivation
 }
 ```
 
-### 2. Use in your flake
+**2. Use in your flake:**
 
 ```nix
 {
@@ -50,105 +43,37 @@ A Nix module that reads your `global.json` file and builds a .NET SDK derivation
 }
 ```
 
-The SDK/workload versions come from your `global.json`, and `outputHash` pins the final SDK output for reproducibility.
-
 ## API Reference
 
-### `mkDotnet` Function
-
-Creates a .NET SDK derivation using versions from your `global.json`:
+### `mkDotnet`
 
 ```nix
 nix-dotnet.lib.${system}.mkDotnet {
-  # Required: Path to your global.json file
-  globalJsonPath = ./global.json;
-
-  # Optional: List of workload names to install
-  # Versions are read from global.json's workloadVersion field
-  workloads = [ "android" "ios" "maui" ];
-
-  # Required: Fixed-output derivation hash for reproducibility
-  # Use a placeholder first, then replace with the hash from the build error
-  outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+  globalJsonPath = ./global.json;  # Required
+  workloads = [ "android" "ios" ];  # Optional
+  outputHash = "sha256-...";       # Required for fixed-output
 }
 ```
 
-### Fixed-Output Derivations (Reproducible Builds)
+**Parameters:**
 
-`mkDotnet` uses Nix fixed-output derivations. You must provide `outputHash`, which pins the exact hash of the installed SDK and ensures that:
+- `globalJsonPath` - Path to global.json (required)
+- `workloads` - List of workload names (optional, versions from global.json)
+- `outputHash` - Fixed-output derivation hash (required)
 
-- The build is 100% reproducible across machines and time
-- No network access is required after the first successful build
-- The output can be cached and distributed via binary caches
+### Getting the outputHash
 
-#### Using Fixed-Output Mode
+1. Use a placeholder hash
+2. Build: `nix build` (fails with "hash mismatch")
+3. Copy the "got:" hash from the error
+4. Update your flake with the correct hash
 
-1. Set `outputHash` to a placeholder:
-
-```nix
-nix-dotnet.lib.${system}.mkDotnet {
-  globalJsonPath = ./global.json;
-  workloads = [];
-  outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-}
-```
-
-2. Build (it will fail and report the correct hash):
-
-```bash
-nix build .#my-sdk
-# Error: hash mismatch...
-# got: sha256-abc123...
-```
-
-3. Update with the correct hash:
-
-```nix
-outputHash = "sha256-abc123...";
-```
-
-4. Rebuild - now uses the binary cache!
-
-#### Important Notes
-
-- **Workloads**: Both SDK-only and workload installations support fixed-output derivations. The workload metadata (which contained store path references) is automatically removed during the build process.
-- **Cross-compilation limitation**: Workload installation requires executing the `dotnet` binary during the build. This means you cannot build workload-enabled SDKs for a different platform (e.g., building Linux workloads on macOS). Workload builds must be done natively on the target platform.
-- **Hash changes**: If Microsoft updates the SDK or workload packs, the hash will change. This is expected and ensures reproducibility.
-
-**Required global.json format:**
-
-```json
-{
-  "sdk": {
-    "version": "10.0.100", // Required: SDK version
-    "rollForward": "disable", // Optional: Roll forward policy
-    "workloadVersion": "10.0.100.1" // Optional: Default workload version
-  }
-}
-```
-
-If `workloadVersion` is not specified in `global.json`, workloads will use their latest compatible version.
+**Note:** Workload installation requires executing `dotnet` during build, so you cannot cross-compile workload-enabled SDKs (e.g., building Linux workloads on macOS).
 
 ## Examples
 
-See the [`examples/`](./examples/) directory:
-
-- [`examples/basic/`](./examples/basic/) - Simple SDK installation
+- [`examples/basic/`](./examples/basic/) - SDK without workloads
 - [`examples/with-workloads/`](./examples/with-workloads/) - SDK with MAUI workloads
-
-## How It Works
-
-1. Reads SDK version from your `global.json` (`sdk.version`)
-2. Reads default workload version from your `global.json` (`sdk.workloadVersion`)
-3. Downloads and installs the exact SDK version
-4. Installs specified workloads at the exact version from global.json
-5. Returns a Nix derivation for use in dev shells
-
-## Requirements
-
-- Nix with flakes enabled
-- `global.json` file with `sdk.version` field
-- Internet connection during build (downloads SDK from Microsoft)
 
 ## Supported Platforms
 
@@ -159,19 +84,14 @@ See the [`examples/`](./examples/) directory:
 
 ## Development
 
-### Running Tests
-
 ```bash
-# Run unit tests (fast - pure Nix evaluation)
+# Unit tests (fast)
 nix run github:nix-community/nix-unit -- --flake '.#tests'
 
-# Run integration test (slow - builds .NET SDK and runs xUnit tests)
+# Integration tests (slow, builds SDK)
 nix build .#checks.<system>.integration-test --no-link
 
-# Run workload integration test (slow - validates installed workloads)
-nix build .#checks.<system>.integration-workload-test --no-link
-
-# Run all checks including formatting and tests
+# All checks
 nix flake check
 
 # Build examples
@@ -179,27 +99,6 @@ nix build .#basic-example --no-link
 nix build .#workload-example --no-link
 ```
 
-### Test Structure
-
-- **Unit tests** (`tests/unit.nix`): Fast pure Nix tests for validation/parsing, JSON parsing, and mkDotnet derivation behavior
-- **Integration tests** (`tests/integration/`): Full .NET project restore/build/test against the generated SDK
-- **Workload integration tests** (`tests/integration-workload-test.nix`): Validates workload installation and then runs restore/build/test in locked mode
-  - Located in `tests/integration/` directory
-  - Builds a real .NET SDK using this module
-  - Runs xUnit tests to verify the SDK works correctly
-
-## Why global.json as the Only Source?
-
-- **Consistency**: Matches how `dotnet` CLI works
-- **Simplicity**: One file controls all versions
-- **Team-friendly**: Easy to share and version control
-- **CI/CD compatible**: Works naturally with existing .NET workflows
-
 ## License
 
-MIT License - see [LICENSE](./LICENSE) for details.
-
-## Acknowledgments
-
-- Uses Microsoft's official [dotnet-install scripts](https://github.com/dotnet/install-scripts)
-- Inspired by the need for version-pinned .NET SDKs in Nix environments
+MIT

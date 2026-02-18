@@ -1,19 +1,19 @@
 # Workloads Example
 
-This example demonstrates installing .NET SDK with workloads (MAUI, Android, iOS).
+SDK with MAUI, Android, and iOS workloads.
 
 ## Prerequisites
 
-For mobile development workloads, you may need additional system dependencies:
-
 - Android SDK (for Android workload)
-- Xcode (for iOS workload on macOS)
+- Xcode (for iOS/macOS workloads)
 
 ## Usage
 
 ```bash
 nix develop
 ```
+
+The first build will fail with a hash mismatch. Copy the "got:" hash and update the `outputHash` in `flake.nix`.
 
 ## Available Workloads
 
