@@ -20,10 +20,14 @@
         dotnet = import ./src/nix-dotnet.nix {inherit pkgs;};
         sdkOutputHashes = {
           aarch64-darwin = "sha256-QrDQHIjGxhQu0dqbXFw5idaQ74G6qml0xoNPX+rbEPs=";
+          aarch64-linux = "sha256-t4lHygbZMs2Mdry+rqSgSxhXWubWrC3uj1iIogyBE/U=";
+          x86_64-darwin = "sha256-bWnl7oDH6ywF2iwFlQ+b1NZ6f5JvRtauaqIQIlz4Mzg=";
           x86_64-linux = "sha256-zavpTqfPO/x1YFvGww+QBzyK70eGi50TaA5wkaGziFg=";
         };
         workloadOutputHashes = {
           aarch64-darwin = "sha256-PXo7/caO02xsbx2qWcUIXtyvvr2ePifPdvMVzO9+JUE=";
+          aarch64-linux = "sha256-IOo5a1RSjnouRl79Xru01XYdqtiNXS+pgrCa1Fx4+sI=";
+          x86_64-darwin = "sha256-gJPf567EoBmF22ANZX9qFEA/wtZHU/+GBd6rbaj9VUQ=";
           x86_64-linux = "sha256-R6+gCgcfrTv1NYQyI0/3YXmjDRvvooPEOjCR59WSpfk=";
         };
         outputHashFor = hashes:

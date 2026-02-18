@@ -192,7 +192,7 @@
           done
 
           printf '%s\n' \
-            '#!/usr/bin/env bash' \
+            '#!${pkgs.bash}/bin/bash' \
             'export LD_LIBRARY_PATH="${dotnetLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"' \
             'script_dir="$(cd "$(dirname "$0")" && pwd)"' \
             'export DOTNET_ROOT="$script_dir/.runtime"' \
