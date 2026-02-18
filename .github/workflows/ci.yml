@@ -9,7 +9,10 @@ on:
 jobs:
   # Unit tests using nix-unit
   unit-tests:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +47,10 @@ jobs:
 
   # Integration tests (actual SDK downloads)
   integration-basic:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,12 +62,21 @@ jobs:
           mkdir -p ~/.config/nix
           echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
-      - name: Build basic SDK
-        run: nix build .#basic-example --no-link
+      - name: Run basic integration test
+        run: |
+          system=$(nix eval --impure --raw --expr builtins.currentSystem)
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            nix build .#checks.${system}.integration-test --no-link --option sandbox false
+          else
+            nix build .#checks.${system}.integration-test --no-link
+          fi
         timeout-minutes: 15
 
   integration-workloads:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -73,6 +88,12 @@ jobs:
           mkdir -p ~/.config/nix
           echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
-      - name: Build SDK with workloads
-        run: nix build .#workload-example --no-link
+      - name: Run workload integration test
+        run: |
+          system=$(nix eval --impure --raw --expr builtins.currentSystem)
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            nix build .#checks.${system}.integration-workload-test --no-link --option sandbox false
+          else
+            nix build .#checks.${system}.integration-workload-test --no-link
+          fi
         timeout-minutes: 20

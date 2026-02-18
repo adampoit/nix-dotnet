@@ -1,4 +1,50 @@
-{lib}: {
+{
+  lib,
+  dotnet,
+}: let
+  validGlobalJson = builtins.toFile "global-valid.json" ''
+    {
+      "sdk": {
+        "version": "10.0.103",
+        "rollForward": "disable",
+        "workloadVersion": "10.0.100.1"
+      }
+    }
+  '';
+
+  globalJsonWithoutWorkloadVersion = builtins.toFile "global-no-workload-version.json" ''
+    {
+      "sdk": {
+        "version": "10.0.103",
+        "rollForward": "disable"
+      }
+    }
+  '';
+
+  globalJsonMissingSdkVersion = builtins.toFile "global-missing-sdk-version.json" ''
+    {
+      "sdk": {
+        "rollForward": "disable"
+      }
+    }
+  '';
+
+  globalJsonInvalidSdkVersion = builtins.toFile "global-invalid-sdk-version.json" ''
+    {
+      "sdk": {
+        "version": "not-a-version"
+      }
+    }
+  '';
+
+  validOutputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
+  mkDotnetFrom = globalJsonPath: workloads: outputHash:
+    dotnet.mkDotnet {
+      inherit globalJsonPath workloads;
+      inherit outputHash;
+    };
+in {
   testValidateSdkVersionBasic = {
     expr = lib.validateSdkVersion "10.0.100";
     expected = "10.0.100";
@@ -187,6 +233,106 @@
     expr = builtins.tryEval (lib.validateWorkload {
       version = "10.0.100.1";
     });
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testValidateOutputHashValid = {
+    expr = lib.validateOutputHash validOutputHash;
+    expected = validOutputHash;
+  };
+
+  testValidateOutputHashNull = {
+    expr = builtins.tryEval (lib.validateOutputHash null);
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testValidateOutputHashEmpty = {
+    expr = builtins.tryEval (lib.validateOutputHash "");
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testReadGlobalJsonWithWorkloadVersion = {
+    expr = lib.readGlobalJson validGlobalJson;
+    expected = {
+      sdkVersion = "10.0.103";
+      workloadVersion = "10.0.100.1";
+    };
+  };
+
+  testReadGlobalJsonWithoutWorkloadVersion = {
+    expr = lib.readGlobalJson globalJsonWithoutWorkloadVersion;
+    expected = {
+      sdkVersion = "10.0.103";
+      workloadVersion = null;
+    };
+  };
+
+  testReadGlobalJsonMissingSdkVersion = {
+    expr = lib.readGlobalJson globalJsonMissingSdkVersion;
+    expected = {
+      sdkVersion = null;
+      workloadVersion = null;
+    };
+  };
+
+  testMkDotnetVersionFromGlobalJson = {
+    expr = (mkDotnetFrom validGlobalJson [] validOutputHash).version;
+    expected = "10.0.103";
+  };
+
+  testMkDotnetPnameWithVersionedWorkloads = {
+    expr =
+      (mkDotnetFrom validGlobalJson [
+          "android"
+          "ios"
+        ]
+        validOutputHash).pname;
+    expected = "dotnet-sdk-android-10.0.100.1-ios-10.0.100.1";
+  };
+
+  testMkDotnetPnameWithoutWorkloadVersion = {
+    expr = (mkDotnetFrom globalJsonWithoutWorkloadVersion ["android"] validOutputHash).pname;
+    expected = "dotnet-sdk-android";
+  };
+
+  testMkDotnetPassthruWorkloads = {
+    expr =
+      (mkDotnetFrom validGlobalJson [
+          "android"
+          "ios"
+        ]
+        validOutputHash).passthru.workloads;
+    expected = [
+      {
+        name = "android";
+        version = "10.0.100.1";
+      }
+      {
+        name = "ios";
+        version = "10.0.100.1";
+      }
+    ];
+  };
+
+  testMkDotnetMissingSdkVersion = {
+    expr = builtins.tryEval (mkDotnetFrom globalJsonMissingSdkVersion [] validOutputHash);
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testMkDotnetInvalidSdkVersion = {
+    expr = builtins.tryEval (mkDotnetFrom globalJsonInvalidSdkVersion [] validOutputHash);
     expected = {
       success = false;
       value = false;

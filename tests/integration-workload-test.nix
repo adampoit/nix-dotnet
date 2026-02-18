@@ -4,29 +4,29 @@
   outputHash,
 }: let
   dotnetSdk = dotnet.mkDotnet {
-    globalJsonPath = ./integration/global.json;
-    workloads = [];
+    globalJsonPath = ./integration/global-workloads.json;
+    workloads = ["android"];
     inherit outputHash;
   };
 in
   pkgs.stdenv.mkDerivation {
-    pname = "dotnet-nix-integration-test";
+    pname = "dotnet-nix-integration-workload-test";
     version = "1.0.0";
 
     src = ./integration;
 
-    nativeBuildInputs = [pkgs.cacert];
+    nativeBuildInputs = [
+      pkgs.cacert
+      pkgs.gnugrep
+    ];
 
-    # Configure .NET CLI environment (absolute paths required)
     DOTNET_ROOT = "${dotnetSdk}";
 
     buildPhase = ''
       runHook preBuild
 
-      # Add dotnet to PATH
       export PATH="${dotnetSdk}:$PATH"
 
-      # Use absolute paths for .NET CLI environment
       export DOTNET_CLI_HOME="$PWD/.dotnet-cli-home"
       export NUGET_PACKAGES="$PWD/.nuget/packages"
       export NUGET_HTTP_CACHE_PATH="$PWD/.nuget/http-cache"
@@ -34,29 +34,36 @@ in
 
       mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH" "$HOME"
 
-      echo "=== Integration Test: Building .NET Project ==="
+      echo "=== Integration Test: SDK With Workloads ==="
       echo "SDK Version: $(dotnet --version)"
       echo ""
 
-      # Restore NuGet packages
-      echo "Step 1: Restoring NuGet packages..."
+      echo "Step 1: Verifying workload installation..."
+      workload_list="$(dotnet workload list)"
+      echo "$workload_list"
+
+      if ! printf '%s\n' "$workload_list" | grep -qE '^android[[:space:]]'; then
+        echo "ERROR: android workload is missing"
+        exit 1
+      fi
+
+      echo ""
+      echo "Step 2: Restoring NuGet packages in locked mode..."
       dotnet restore TestSolution.slnx --locked-mode
 
-      # Build the solution
       echo ""
-      echo "Step 2: Building solution..."
+      echo "Step 3: Building solution..."
       dotnet build TestSolution.slnx --configuration Release --no-restore
 
-      # Run the tests
       echo ""
-      echo "Step 3: Running tests..."
+      echo "Step 4: Running tests..."
       dotnet test TestApp.Tests/TestApp.Tests.csproj \
         --configuration Release \
         --no-build \
         --verbosity normal
 
       echo ""
-      echo "=== Integration Test Passed ==="
+      echo "=== Integration Workload Test Passed ==="
 
       runHook postBuild
     '';
@@ -65,7 +72,7 @@ in
       runHook preInstall
 
       mkdir -p $out
-      echo "Integration test completed successfully" > $out/result
+      echo "Integration workload test completed successfully" > $out/result
 
       runHook postInstall
     '';

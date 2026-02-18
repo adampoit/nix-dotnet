@@ -18,29 +18,51 @@
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
         dotnet = import ./src/nix-dotnet.nix {inherit pkgs;};
+        sdkOutputHashes = {
+          aarch64-darwin = "sha256-QrDQHIjGxhQu0dqbXFw5idaQ74G6qml0xoNPX+rbEPs=";
+          aarch64-linux = "sha256-t4lHygbZMs2Mdry+rqSgSxhXWubWrC3uj1iIogyBE/U=";
+          x86_64-darwin = "sha256-bWnl7oDH6ywF2iwFlQ+b1NZ6f5JvRtauaqIQIlz4Mzg=";
+          x86_64-linux = "sha256-zavpTqfPO/x1YFvGww+QBzyK70eGi50TaA5wkaGziFg=";
+        };
+        workloadOutputHashes = {
+          aarch64-darwin = "sha256-PXo7/caO02xsbx2qWcUIXtyvvr2ePifPdvMVzO9+JUE=";
+          aarch64-linux = "sha256-IOo5a1RSjnouRl79Xru01XYdqtiNXS+pgrCa1Fx4+sI=";
+          x86_64-darwin = "sha256-gJPf567EoBmF22ANZX9qFEA/wtZHU/+GBd6rbaj9VUQ=";
+          x86_64-linux = "sha256-R6+gCgcfrTv1NYQyI0/3YXmjDRvvooPEOjCR59WSpfk=";
+        };
+        outputHashFor = hashes:
+          if builtins.hasAttr system hashes
+          then hashes.${system}
+          else throw "No outputHash configured for system ${system}";
+        unitTests = import ./tests/unit.nix {
+          lib = dotnet.internal;
+          inherit dotnet;
+        };
+
+        unitTestAssertions =
+          builtins.map
+          (
+            name: let
+              test = unitTests.${name};
+            in
+              if test.expr == test.expected
+              then true
+              else throw "Unit test failed: ${name}"
+          )
+          (builtins.attrNames unitTests);
       in {
         lib = dotnet;
         packages = {
           basic-example = dotnet.mkDotnet {
             globalJsonPath = ./global.json;
             workloads = [];
-            outputHash =
-              if system == "aarch64-darwin"
-              then "sha256-k7etFSnLiKFSKn5zVhp9Oom2yPRIAlkY/fKmwUG0pBI="
-              else if system == "x86_64-linux"
-              then "sha256-zavpTqfPO/x1YFvGww+QBzyK70eGi50TaA5wkaGziFg="
-              else null; # Compute on each target system (e.g., nix build .#basic-example)
+            outputHash = outputHashFor sdkOutputHashes;
           };
 
           workload-example = dotnet.mkDotnet {
             globalJsonPath = ./global.json;
             workloads = ["android"];
-            outputHash =
-              if system == "aarch64-darwin"
-              then "sha256-xbWrAYckiJF4xhbsXvCJL3gLrcLXcIxrlsHwM7tGdGU="
-              else if system == "x86_64-linux"
-              then "sha256-R6+gCgcfrTv1NYQyI0/3YXmjDRvvooPEOjCR59WSpfk="
-              else null; # Compute on each target system (e.g., nix build .#workload-example)
+            outputHash = outputHashFor workloadOutputHashes;
           };
         };
 
@@ -62,16 +84,18 @@
               touch $out
             ";
 
-          unit-tests =
-            pkgs.runCommand "unit-tests" {}
-            ''
-              ${pkgs.nix}/bin/nix-instantiate --eval --strict ${./tests/unit.nix} \
-                --arg lib "import ${./src/lib.nix} { pkgs = import ${nixpkgs} { system = \"${system}\"; }; }" 2>&1 | tee $out
-              echo "All tests evaluate successfully" >> $out
-            '';
+          unit-tests = builtins.deepSeq unitTestAssertions (pkgs.runCommand "unit-tests" {} ''
+            echo "${toString (builtins.length (builtins.attrNames unitTests))} unit tests passed" > $out
+          '');
 
           integration-test = import ./tests/integration-test.nix {
             inherit pkgs dotnet;
+            outputHash = outputHashFor sdkOutputHashes;
+          };
+
+          integration-workload-test = import ./tests/integration-workload-test.nix {
+            inherit pkgs dotnet;
+            outputHash = outputHashFor workloadOutputHashes;
           };
         };
       }
@@ -88,8 +112,13 @@
         };
       };
 
-      tests = import ./tests/unit.nix {
-        lib = import ./src/lib.nix {pkgs = nixpkgs.legacyPackages.x86_64-linux;};
-      };
+      tests = let
+        pkgs = nixpkgs.legacyPackages.x86_64-linux;
+        dotnet = import ./src/nix-dotnet.nix {inherit pkgs;};
+      in
+        import ./tests/unit.nix {
+          lib = dotnet.internal;
+          inherit dotnet;
+        };
     };
 }

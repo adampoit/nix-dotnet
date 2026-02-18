@@ -61,6 +61,13 @@ in {
   in
     foldl' (str: c: replaceUnsafe c str) name unsafeChars;
 
+  validateOutputHash = outputHash:
+    if outputHash == null
+    then throw "outputHash is required. Use the hash from a prior build mismatch to keep derivations reproducible."
+    else if outputHash == ""
+    then throw "outputHash cannot be empty."
+    else outputHash;
+
   parseSdkVersion = version: let
     parts = splitString "." version;
   in {
