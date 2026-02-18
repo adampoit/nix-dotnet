@@ -15,6 +15,8 @@
 - Unit tests: `nix run github:nix-community/nix-unit -- --flake '.#tests'`
 - Run single unit test: `nix run github:nix-community/nix-unit -- --flake '.#tests' --filter 'testValidateSdkVersionBasic'`
 - Integration test: `nix build .#checks.<system>.integration-test --no-link`
+- Reproduce Linux integration checks in container: `./scripts/run-linux-build.sh`
+- Run a specific Linux check in container: `./scripts/run-linux-build.sh .#checks.x86_64-linux.integration-test`
 - Build basic example: `nix build .#basic-example --no-link`
 - Build workload example: `nix build .#workload-example --no-link`
 - Enter dev shell: `nix develop`
@@ -32,7 +34,6 @@
 
 ## Code Style
 
-- Format all `.nix` files with alejandra
 - Use `inherit (pkgs.lib) func1 func2` for importing library functions
 - Write modular, composable functions
 - **Minimal comments**: Only use comments to explain non-obvious behavior, not to describe what the code does
@@ -73,6 +74,9 @@ buildWorkloadNames = workloads:
 
 - **Integration tests** (slow, requires .NET SDK build):
   - Run: `nix build .#checks.<system>.integration-test --no-link`
+  - Linux CI parity (from macOS): `./scripts/run-linux-build.sh`
+  - The script uses a `nixos/nix` linux/amd64 container and defaults to both Linux integration checks.
+  - Optional attrs can be passed (for example: `./scripts/run-linux-build.sh .#checks.x86_64-linux.integration-workload-test`).
   - Location: `tests/integration/` (full .NET project with xUnit tests)
   - Tests: End-to-end SDK build and test execution
   - Validates that mkDotnet produces a working .NET SDK
@@ -82,7 +86,6 @@ buildWorkloadNames = workloads:
 **Always do:**
 
 - Run tests after changes
-- Format code with alejandra
 - Keep functions in `lib.nix` pure (no side effects)
 - Update tests when changing function behavior
 

@@ -15,9 +15,7 @@ in
 
     src = ./integration;
 
-    nativeBuildInputs = [
-      pkgs.cacert
-    ];
+    nativeBuildInputs = [pkgs.cacert];
 
     # Configure .NET CLI environment (absolute paths required)
     DOTNET_ROOT = "${dotnetSdk}";

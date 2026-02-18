@@ -15,6 +15,7 @@
 
   defaultInstallScriptUrl = "https://dot.net/v1/dotnet-install.sh";
   defaultInstallScriptSha256 = "0hp4gjss641gabh24wf1xsxp9y1vb48fna5vc9ag24rp614nhahh";
+  dotnetLibraryPath = pkgs.lib.makeLibraryPath [pkgs.stdenv.cc.cc pkgs.zlib pkgs.icu pkgs.openssl];
 
   mkDotnetSdk = {
     sdkVersion,
@@ -34,8 +35,8 @@
       url = installScriptUrl;
       sha256 = installScriptSha256;
     };
-  in
-    pkgs.stdenv.mkDerivation {
+
+    rawSdk = pkgs.stdenv.mkDerivation {
       pname = sanitizePname "dotnet-sdk-${workloadPnameSuffix}";
       version = validatedSdkVersion;
 
@@ -46,15 +47,18 @@
       outputHashAlgo = "sha256";
       outputHash = validatedOutputHash;
 
-      nativeBuildInputs = with pkgs; [
-        curl
-        cacert
-        patchelf
-        removeReferencesTo
-        icu
-        openssl
-        zlib
-      ];
+      nativeBuildInputs = with pkgs;
+        [
+          curl
+          cacert
+          removeReferencesTo
+        ]
+        ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+          patchelf
+          icu
+          openssl
+          zlib
+        ];
 
       buildPhase = ''
         runHook preBuild
@@ -85,7 +89,10 @@
         export DOTNET_CLI_TELEMETRY_OPTOUT=1
         export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
         export DOTNET_GENERATE_ASPNET_CERTIFICATE=0
-        export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [pkgs.icu pkgs.openssl pkgs.zlib pkgs.stdenv.cc.cc]}"
+
+        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+          export LD_LIBRARY_PATH="${dotnetLibraryPath}"
+        ''}
 
         mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH"
 
@@ -114,18 +121,13 @@
         echo "Installation complete"
         echo "SDK Version: $($out/dotnet --version)"
 
-        # Remove self-references from workload metadata
-        # The metadata directory contains JSON files with store path references
         if [ -d "$out/metadata" ]; then
           echo "Removing store path references from workload metadata..."
           find "$out/metadata" -type f \( -name "*.json" -o -name "*.txt" \) 2>/dev/null | while read f; do
-            # Replace nix store paths with just the filename to avoid references
             sed -i "s|/nix/store/[^/]*/|$out/|g" "$f" 2>/dev/null || true
           done
         fi
 
-        # Remove any remaining self-references from all files so fixed-output
-        # derivations do not retain references to their own store path.
         echo "Removing remaining self-references from output..."
         find "$out" -type f 2>/dev/null | while read f; do
           remove-references-to -t "$out" "$f" 2>/dev/null || true
@@ -148,6 +150,65 @@
         platforms = platforms.all;
       };
     };
+  in
+    if pkgs.stdenv.isLinux
+    then
+      pkgs.stdenv.mkDerivation {
+        pname = rawSdk.pname;
+        inherit (rawSdk) version;
+
+        src = rawSdk;
+        dontUnpack = true;
+
+        nativeBuildInputs = [pkgs.patchelf];
+
+        installPhase = ''
+          runHook preInstall
+
+          mkdir -p "$out"
+          cp -a "$src" "$out/.runtime"
+          chmod -R u+w "$out/.runtime"
+
+          while IFS= read -r -d $'\0' file; do
+            if patchelf --print-rpath "$file" >/dev/null 2>&1; then
+              if patchelf --print-interpreter "$file" >/dev/null 2>&1; then
+                patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$file"
+              fi
+
+              currentRpath="$(patchelf --print-rpath "$file" 2>/dev/null || true)"
+              if [ -n "$currentRpath" ]; then
+                patchelf --set-rpath "${dotnetLibraryPath}:$currentRpath" "$file"
+              else
+                patchelf --set-rpath "${dotnetLibraryPath}" "$file"
+              fi
+            fi
+          done < <(find "$out/.runtime" -type f -print0)
+
+          for entry in "$out/.runtime"/*; do
+            name="$(basename "$entry")"
+            if [ "$name" != "dotnet" ]; then
+              ln -s ".runtime/$name" "$out/$name"
+            fi
+          done
+
+          printf '%s\n' \
+            '#!/usr/bin/env bash' \
+            'export LD_LIBRARY_PATH="${dotnetLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"' \
+            'script_dir="$(cd "$(dirname "$0")" && pwd)"' \
+            'export DOTNET_ROOT="$script_dir/.runtime"' \
+            'exec "$script_dir/.runtime/dotnet" "$@"' \
+            > "$out/dotnet"
+          chmod +x "$out/dotnet"
+
+          chmod -R a-w "$out"
+
+          runHook postInstall
+        '';
+
+        passthru = rawSdk.passthru // {inherit rawSdk;};
+        meta = rawSdk.meta;
+      }
+    else rawSdk;
 
   mkDotnet = {
     globalJsonPath,

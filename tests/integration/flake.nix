@@ -32,9 +32,7 @@
 
         src = ./.;
 
-        nativeBuildInputs = [
-          pkgs.cacert
-        ];
+        nativeBuildInputs = [pkgs.cacert];
 
         # Configure .NET CLI environment
         DOTNET_ROOT = "${dotnetSdk}";
