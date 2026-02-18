@@ -65,7 +65,11 @@ jobs:
       - name: Run basic integration test
         run: |
           system=$(nix eval --impure --raw --expr builtins.currentSystem)
-          nix build .#checks.${system}.integration-test --no-link
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            nix build .#checks.${system}.integration-test --no-link --option sandbox false
+          else
+            nix build .#checks.${system}.integration-test --no-link
+          fi
         timeout-minutes: 15
 
   integration-workloads:
@@ -87,5 +91,9 @@ jobs:
       - name: Run workload integration test
         run: |
           system=$(nix eval --impure --raw --expr builtins.currentSystem)
-          nix build .#checks.${system}.integration-workload-test --no-link
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            nix build .#checks.${system}.integration-workload-test --no-link --option sandbox false
+          else
+            nix build .#checks.${system}.integration-workload-test --no-link
+          fi
         timeout-minutes: 20
