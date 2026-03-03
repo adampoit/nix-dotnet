@@ -26,8 +26,7 @@ if [[ "$#" -gt 0 ]]; then
 	attrs=("$@")
 else
 	attrs=(
-		".#checks.x86_64-linux.integration-test"
-		".#checks.x86_64-linux.integration-workload-test"
+		".#checks.x86_64-linux.integration-tests"
 	)
 fi
 

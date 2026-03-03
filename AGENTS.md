@@ -14,9 +14,9 @@
 - Run all checks: `nix flake check`
 - Unit tests: `nix run github:nix-community/nix-unit -- --flake '.#tests'`
 - Run single unit test: `nix run github:nix-community/nix-unit -- --flake '.#tests' --filter 'testValidateSdkVersionBasic'`
-- Integration test: `nix build .#checks.<system>.integration-test --no-link`
+- Integration tests: `nix build .#checks.<system>.integration-tests --no-link`
 - Reproduce Linux integration checks in container: `./scripts/run-linux-build.sh`
-- Run a specific Linux check in container: `./scripts/run-linux-build.sh .#checks.x86_64-linux.integration-test`
+- Run a specific Linux check in container: `./scripts/run-linux-build.sh .#checks.x86_64-linux.integration-tests`
 - Build basic example: `nix build .#basic-example --no-link`
 - Build workload example: `nix build .#workload-example --no-link`
 - Enter dev shell: `nix develop`
@@ -73,10 +73,10 @@ buildWorkloadNames = workloads:
   ```
 
 - **Integration tests** (slow, requires .NET SDK build):
-  - Run: `nix build .#checks.<system>.integration-test --no-link`
+  - Run: `nix build .#checks.<system>.integration-tests --no-link`
   - Linux CI parity (from macOS): `./scripts/run-linux-build.sh`
-  - The script uses a `nixos/nix` linux/amd64 container and defaults to both Linux integration checks.
-  - Optional attrs can be passed (for example: `./scripts/run-linux-build.sh .#checks.x86_64-linux.integration-workload-test`).
+  - The script uses a `nixos/nix` linux/amd64 container and defaults to the combined Linux integration check.
+  - Optional attrs can be passed (for example: `./scripts/run-linux-build.sh .#checks.x86_64-linux.integration-tests`).
   - Location: `tests/integration/` (full .NET project with xUnit tests)
   - Tests: End-to-end SDK build and test execution
   - Validates that mkDotnet produces a working .NET SDK

@@ -17,140 +17,7 @@
   defaultInstallScriptSha256 = "0hp4gjss641gabh24wf1xsxp9y1vb48fna5vc9ag24rp614nhahh";
   dotnetLibraryPath = pkgs.lib.makeLibraryPath [pkgs.stdenv.cc.cc pkgs.zlib pkgs.icu pkgs.openssl];
 
-  mkDotnetSdk = {
-    sdkVersion,
-    workloads ? [],
-    installScriptUrl ? defaultInstallScriptUrl,
-    installScriptSha256 ? defaultInstallScriptSha256,
-    outputHash,
-  }: let
-    validatedSdkVersion = validateSdkVersion sdkVersion;
-    validatedWorkloads = map validateWorkload workloads;
-    validatedOutputHash = validateOutputHash outputHash;
-    workloadNames = buildWorkloadNames validatedWorkloads;
-    workloadPnameSuffix = buildWorkloadPnameSuffix validatedWorkloads;
-    workloadCommands = buildWorkloadCommands validatedWorkloads;
-
-    installScript = pkgs.fetchurl {
-      url = installScriptUrl;
-      sha256 = installScriptSha256;
-    };
-
-    rawSdk = pkgs.stdenv.mkDerivation {
-      pname = sanitizePname "dotnet-sdk-${workloadPnameSuffix}";
-      version = validatedSdkVersion;
-
-      src = null;
-      dontUnpack = true;
-
-      outputHashMode = "recursive";
-      outputHashAlgo = "sha256";
-      outputHash = validatedOutputHash;
-
-      nativeBuildInputs = with pkgs;
-        [
-          curl
-          cacert
-          removeReferencesTo
-        ]
-        ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-          patchelf
-          icu
-          openssl
-          zlib
-        ];
-
-      buildPhase = ''
-        runHook preBuild
-
-        mkdir -p "$out"
-
-        echo "Using verified dotnet-install script from ${installScriptUrl}"
-        cp ${installScript} dotnet-install.sh
-        chmod +x dotnet-install.sh
-
-        echo "Installing .NET SDK ${validatedSdkVersion} into $out"
-        bash ./dotnet-install.sh \
-          --version "${validatedSdkVersion}" \
-          --install-dir "$out" \
-          --no-path
-
-        if [ ! -f "$out/dotnet" ]; then
-          echo "ERROR: dotnet executable not found after installation"
-          exit 1
-        fi
-
-        export DOTNET_ROOT="$out"
-        export PATH="$out:$PATH"
-        export DOTNET_CLI_HOME="$out/.dotnet-cli-home"
-        export NUGET_PACKAGES="$out/.nuget/packages"
-        export NUGET_HTTP_CACHE_PATH="$out/.nuget/http-cache"
-        export HOME="$out/.home"
-        export DOTNET_CLI_TELEMETRY_OPTOUT=1
-        export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
-        export DOTNET_GENERATE_ASPNET_CERTIFICATE=0
-
-        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-          export LD_LIBRARY_PATH="${dotnetLibraryPath}"
-        ''}
-
-        mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH"
-
-        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-          originalDotnetInterp=""
-          if [ "${workloadNames}" != "none" ]; then
-            originalDotnetInterp="$(patchelf --print-interpreter "$out/dotnet")"
-            patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$out/dotnet"
-          fi
-        ''}
-
-        ${workloadCommands}
-
-        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-          if [ "${workloadNames}" != "none" ]; then
-            patchelf --set-interpreter "$originalDotnetInterp" "$out/dotnet"
-          fi
-        ''}
-
-        if [ -d "$out/metadata/workloads" ]; then
-          find "$out/metadata/workloads" -type d -name history -prune -exec rm -rf {} +
-        fi
-
-        rm -rf "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH" "$HOME"
-
-        echo "Installation complete"
-        echo "SDK Version: $($out/dotnet --version)"
-
-        if [ -d "$out/metadata" ]; then
-          echo "Removing store path references from workload metadata..."
-          find "$out/metadata" -type f \( -name "*.json" -o -name "*.txt" \) 2>/dev/null | while read f; do
-            sed -i "s|/nix/store/[^/]*/|$out/|g" "$f" 2>/dev/null || true
-          done
-        fi
-
-        echo "Removing remaining self-references from output..."
-        find "$out" -type f 2>/dev/null | while read f; do
-          remove-references-to -t "$out" "$f" 2>/dev/null || true
-        done
-
-        runHook postBuild
-      '';
-
-      dontFixup = true;
-
-      passthru = {
-        inherit sdkVersion workloads;
-      };
-
-      meta = with pkgs.lib; {
-        description = ".NET SDK ${validatedSdkVersion} with workloads [${workloadNames}]";
-        homepage = "https://dotnet.microsoft.com/";
-        license = licenses.mit;
-        maintainers = [];
-        platforms = platforms.all;
-      };
-    };
-  in
+  finalizeRawSdk = rawSdk:
     if pkgs.stdenv.isLinux
     then
       pkgs.stdenv.mkDerivation {
@@ -210,28 +77,273 @@
       }
     else rawSdk;
 
-  mkDotnet = {
-    globalJsonPath,
+  mkDotnetSdk = {
+    sdkVersion,
     workloads ? [],
+    additionalSdkVersions ? [],
+    installScriptUrl ? defaultInstallScriptUrl,
+    installScriptSha256 ? defaultInstallScriptSha256,
     outputHash,
   }: let
-    globalConfig = readGlobalJson globalJsonPath;
-    sdkVersion = globalConfig.sdkVersion;
-    workloadVersion = globalConfig.workloadVersion;
+    validatedSdkVersion = validateSdkVersion sdkVersion;
+    validatedWorkloads = map validateWorkload workloads;
+    validatedAdditionalSdkVersions = map validateSdkVersion additionalSdkVersions;
+    validatedOutputHash = validateOutputHash outputHash;
+    workloadNames = buildWorkloadNames validatedWorkloads;
+    workloadPnameSuffix = buildWorkloadPnameSuffix validatedWorkloads;
+    workloadCommands = buildWorkloadCommands validatedWorkloads;
+    hasAdditionalSdks = validatedAdditionalSdkVersions != [];
+    additionalSdkPnameSuffix =
+      if hasAdditionalSdks
+      then "-with-${pkgs.lib.concatStringsSep "-" validatedAdditionalSdkVersions}"
+      else "";
+    additionalInstallCommands =
+      if hasAdditionalSdks
+      then
+        pkgs.lib.concatStringsSep "\n\n" (map
+          (version: ''
+            echo "Installing additional .NET SDK ${version} into $out"
+            bash ./dotnet-install.sh \
+              --version "${version}" \
+              --install-dir "$out" \
+              --no-path
+          '')
+          validatedAdditionalSdkVersions)
+      else "";
+
+    installScript = pkgs.fetchurl {
+      url = installScriptUrl;
+      sha256 = installScriptSha256;
+    };
+
+    rawSdk = pkgs.stdenv.mkDerivation {
+      pname = sanitizePname "dotnet-sdk-${workloadPnameSuffix}${additionalSdkPnameSuffix}";
+      version = validatedSdkVersion;
+
+      src = null;
+      dontUnpack = true;
+
+      outputHashMode = "recursive";
+      outputHashAlgo = "sha256";
+      outputHash = validatedOutputHash;
+
+      nativeBuildInputs = with pkgs;
+        [
+          curl
+          cacert
+          removeReferencesTo
+        ]
+        ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+          patchelf
+          icu
+          openssl
+          zlib
+        ];
+
+      buildPhase = ''
+        runHook preBuild
+
+        mkdir -p "$out"
+
+        echo "Using verified dotnet-install script from ${installScriptUrl}"
+        cp ${installScript} dotnet-install.sh
+        chmod +x dotnet-install.sh
+
+        ${additionalInstallCommands}
+
+        echo "Installing .NET SDK ${validatedSdkVersion} into $out"
+        bash ./dotnet-install.sh \
+          --version "${validatedSdkVersion}" \
+          --install-dir "$out" \
+          --no-path
+
+        if [ ! -f "$out/dotnet" ]; then
+          echo "ERROR: dotnet executable not found after installation"
+          exit 1
+        fi
+
+        export DOTNET_ROOT="$out"
+        export PATH="$out:$PATH"
+        export DOTNET_CLI_HOME="$out/.dotnet-cli-home"
+        export NUGET_PACKAGES="$out/.nuget/packages"
+        export NUGET_HTTP_CACHE_PATH="$out/.nuget/http-cache"
+        export HOME="$out/.home"
+        export DOTNET_CLI_TELEMETRY_OPTOUT=1
+        export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+        export DOTNET_GENERATE_ASPNET_CERTIFICATE=0
+
+        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+          export LD_LIBRARY_PATH="${dotnetLibraryPath}"
+        ''}
+
+        mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH"
+
+        ${pkgs.lib.optionalString hasAdditionalSdks ''
+          cat > global.json <<'EOF'
+          {
+            "sdk": {
+              "version": "${validatedSdkVersion}",
+              "rollForward": "disable"
+            }
+          }
+          EOF
+        ''}
+
+        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+          originalDotnetInterp=""
+          if [ "${workloadNames}" != "none" ]; then
+            originalDotnetInterp="$(patchelf --print-interpreter "$out/dotnet")"
+            patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$out/dotnet"
+          fi
+        ''}
+
+        ${workloadCommands}
+
+        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+          if [ "${workloadNames}" != "none" ]; then
+            patchelf --set-interpreter "$originalDotnetInterp" "$out/dotnet"
+          fi
+        ''}
+
+        if [ -d "$out/metadata/workloads" ]; then
+          find "$out/metadata/workloads" -type d -name history -prune -exec rm -rf {} +
+        fi
+
+        rm -rf "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH" "$HOME"
+        ${pkgs.lib.optionalString hasAdditionalSdks ''
+          rm -f global.json
+        ''}
+
+        echo "Installation complete"
+        echo "SDK Version: $($out/dotnet --version)"
+
+        if [ -d "$out/metadata" ]; then
+          echo "Removing store path references from workload metadata..."
+          find "$out/metadata" -type f \( -name "*.json" -o -name "*.txt" \) 2>/dev/null | while read f; do
+            sed -i "s|/nix/store/[^/]*/|$out/|g" "$f" 2>/dev/null || true
+          done
+        fi
+
+        echo "Removing remaining self-references from output..."
+        find "$out" -type f 2>/dev/null | while read f; do
+          remove-references-to -t "$out" "$f" 2>/dev/null || true
+        done
+
+        runHook postBuild
+      '';
+
+      dontFixup = true;
+
+      passthru = {
+        inherit sdkVersion workloads;
+        additionalSdkVersions = validatedAdditionalSdkVersions;
+      };
+
+      meta = with pkgs.lib; {
+        description =
+          if hasAdditionalSdks
+          then ".NET SDK ${validatedSdkVersion} with workloads [${workloadNames}] and additional SDKs [${pkgs.lib.concatStringsSep ", " validatedAdditionalSdkVersions}]"
+          else ".NET SDK ${validatedSdkVersion} with workloads [${workloadNames}]";
+        homepage = "https://dotnet.microsoft.com/";
+        license = licenses.mit;
+        maintainers = [];
+        platforms = platforms.all;
+      };
+    };
+  in
+    finalizeRawSdk rawSdk;
+
+  resolveDotnetConfig = {
+    globalJsonPath ? null,
+    sdkVersion ? null,
+    workloadVersion ? null,
+    workloads ? [],
+  }: let
+    usesGlobalJson = globalJsonPath != null;
+    usesExplicitSdkVersion = sdkVersion != null;
+    globalConfig =
+      if usesGlobalJson
+      then readGlobalJson globalJsonPath
+      else {
+        sdkVersion = null;
+        workloadVersion = null;
+      };
+    resolvedSdkVersion =
+      if usesGlobalJson
+      then globalConfig.sdkVersion
+      else sdkVersion;
+    resolvedWorkloadVersion =
+      if usesGlobalJson
+      then globalConfig.workloadVersion
+      else workloadVersion;
     workloadObjects =
       map
       (name: {
         inherit name;
-        version = workloadVersion;
+        version = resolvedWorkloadVersion;
       })
       workloads;
+    validatedWorkloads = map validateWorkload workloadObjects;
   in
-    if sdkVersion == null
+    if usesGlobalJson && usesExplicitSdkVersion
+    then throw "mkDotnet accepts either globalJsonPath or sdkVersion, not both."
+    else if !(usesGlobalJson || usesExplicitSdkVersion)
+    then throw "mkDotnet requires either globalJsonPath or sdkVersion."
+    else if resolvedSdkVersion == null
     then throw "Could not read SDK version from ${toString globalJsonPath}. Make sure the file exists and has a 'sdk.version' field."
+    else {
+      sdkVersion = validateSdkVersion resolvedSdkVersion;
+      workloads = validatedWorkloads;
+    };
+
+  mkDotnetSingle = config @ {outputHash, ...}: let
+    resolvedConfig = resolveDotnetConfig (removeAttrs config ["outputHash"]);
+  in
+    mkDotnetSdk {
+      sdkVersion = resolvedConfig.sdkVersion;
+      workloads = resolvedConfig.workloads;
+      inherit outputHash;
+    };
+
+  mkDotnetWithAdditional = {
+    primaryConfig,
+    additionalConfigs,
+    outputHash,
+  }: let
+    resolvedPrimary = resolveDotnetConfig primaryConfig;
+    resolvedAdditional = map resolveDotnetConfig additionalConfigs;
+    additionalWithWorkloads = pkgs.lib.filter (config: config.workloads != []) resolvedAdditional;
+    additionalVersions = map (config: config.sdkVersion) resolvedAdditional;
+  in
+    if additionalWithWorkloads != []
+    then throw "additionalSdks entries with workloads are not supported yet."
     else
       mkDotnetSdk {
-        inherit sdkVersion outputHash;
-        workloads = workloadObjects;
+        sdkVersion = resolvedPrimary.sdkVersion;
+        workloads = resolvedPrimary.workloads;
+        additionalSdkVersions = additionalVersions;
+        inherit outputHash;
+      };
+
+  mkDotnet = args @ {additionalSdks ? [], ...}: let
+    primaryArgs = removeAttrs args ["additionalSdks"];
+    normalizedAdditionalConfigs =
+      map
+      (config:
+        if builtins.hasAttr "additionalSdks" config && config.additionalSdks != []
+        then throw "Nested additionalSdks are not supported. Add all SDK entries at the top-level additionalSdks list."
+        else if builtins.hasAttr "outputHash" config
+        then throw "additionalSdks entries should not set outputHash. Use top-level outputHash for the combined installation."
+        else removeAttrs config ["additionalSdks" "outputHash"])
+      additionalSdks;
+  in
+    if additionalSdks == []
+    then mkDotnetSingle primaryArgs
+    else
+      mkDotnetWithAdditional {
+        primaryConfig = removeAttrs primaryArgs ["outputHash"];
+        additionalConfigs = normalizedAdditionalConfigs;
+        outputHash = primaryArgs.outputHash;
       };
 in {
   inherit mkDotnet;
