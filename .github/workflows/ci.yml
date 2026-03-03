@@ -46,7 +46,7 @@ jobs:
         run: nix build .#checks.x86_64-linux.fmt --no-link
 
   # Integration tests (actual SDK downloads)
-  integration-basic:
+  integration-tests:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -62,38 +62,12 @@ jobs:
           mkdir -p ~/.config/nix
           echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
-      - name: Run basic integration test
+      - name: Run integration tests
         run: |
           system=$(nix eval --impure --raw --expr builtins.currentSystem)
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            nix build .#checks.${system}.integration-test --no-link --option sandbox false
+            nix build .#checks.${system}.integration-tests --no-link --option sandbox false
           else
-            nix build .#checks.${system}.integration-test --no-link
-          fi
-        timeout-minutes: 15
-
-  integration-workloads:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-
-      - name: Enable Flakes
-        run: |
-          mkdir -p ~/.config/nix
-          echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
-
-      - name: Run workload integration test
-        run: |
-          system=$(nix eval --impure --raw --expr builtins.currentSystem)
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            nix build .#checks.${system}.integration-workload-test --no-link --option sandbox false
-          else
-            nix build .#checks.${system}.integration-workload-test --no-link
+            nix build .#checks.${system}.integration-tests --no-link
           fi
         timeout-minutes: 20

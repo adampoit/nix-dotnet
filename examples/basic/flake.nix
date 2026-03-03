@@ -5,7 +5,6 @@
   };
 
   outputs = {
-    self,
     nixpkgs,
     nix-dotnet,
   }: let

@@ -14,17 +14,20 @@
     devShells.${system}.default = pkgs.mkShell {
       buildInputs = [
         (nix-dotnet.lib.${system}.mkDotnet {
-          globalJsonPath = ./global.json;
-          workloads = ["android" "maui"];
-          # Required: fixed-output hash (placeholder below; replace after first build)
+          sdkVersion = "10.0.103";
           outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+          additionalSdks = [
+            {
+              sdkVersion = "9.0.304";
+            }
+          ];
         })
       ];
 
       shellHook = ''
-        echo ".NET SDK $(dotnet --version) with workloads is ready!"
-        echo "Installed workloads:"
-        dotnet workload list
+        echo "Active SDK: $(dotnet --version)"
+        echo "Installed SDKs:"
+        dotnet --list-sdks
       '';
     };
   };

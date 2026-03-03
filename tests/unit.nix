@@ -44,6 +44,12 @@
       inherit globalJsonPath workloads;
       inherit outputHash;
     };
+
+  mkDotnetFromVersion = sdkVersion: workloadVersion: workloads: outputHash:
+    dotnet.mkDotnet {
+      inherit sdkVersion workloadVersion workloads;
+      inherit outputHash;
+    };
 in {
   testValidateSdkVersionBasic = {
     expr = lib.validateSdkVersion "10.0.100";
@@ -289,6 +295,11 @@ in {
     expected = "10.0.103";
   };
 
+  testMkDotnetVersionFromExplicitSdkVersion = {
+    expr = (mkDotnetFromVersion "9.0.404" null [] validOutputHash).version;
+    expected = "9.0.404";
+  };
+
   testMkDotnetPnameWithVersionedWorkloads = {
     expr =
       (mkDotnetFrom validGlobalJson [
@@ -323,6 +334,44 @@ in {
     ];
   };
 
+  testMkDotnetPassthruWorkloadsFromExplicitWorkloadVersion = {
+    expr =
+      (mkDotnetFromVersion "9.0.404" "9.0.100" [
+          "android"
+        ]
+        validOutputHash).passthru.workloads;
+    expected = [
+      {
+        name = "android";
+        version = "9.0.100";
+      }
+    ];
+  };
+
+  testMkDotnetRequiresVersionSource = {
+    expr = builtins.tryEval (dotnet.mkDotnet {
+      workloads = [];
+      outputHash = validOutputHash;
+    });
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testMkDotnetRejectsMixedVersionSources = {
+    expr = builtins.tryEval (dotnet.mkDotnet {
+      globalJsonPath = validGlobalJson;
+      sdkVersion = "9.0.404";
+      workloads = [];
+      outputHash = validOutputHash;
+    });
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
   testMkDotnetMissingSdkVersion = {
     expr = builtins.tryEval (mkDotnetFrom globalJsonMissingSdkVersion [] validOutputHash);
     expected = {
@@ -333,6 +382,75 @@ in {
 
   testMkDotnetInvalidSdkVersion = {
     expr = builtins.tryEval (mkDotnetFrom globalJsonInvalidSdkVersion [] validOutputHash);
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testMkDotnetAdditionalSdksVersions = {
+    expr =
+      (dotnet.mkDotnet {
+        sdkVersion = "10.0.103";
+        outputHash = validOutputHash;
+        additionalSdks = [
+          {
+            sdkVersion = "9.0.404";
+          }
+        ];
+      }).passthru.additionalSdkVersions;
+    expected = ["9.0.404"];
+  };
+
+  testMkDotnetAdditionalSdksNestedRejected = {
+    expr = builtins.tryEval (dotnet.mkDotnet {
+      sdkVersion = "10.0.103";
+      outputHash = validOutputHash;
+      additionalSdks = [
+        {
+          sdkVersion = "9.0.404";
+          additionalSdks = [
+            {
+              sdkVersion = "8.0.100";
+            }
+          ];
+        }
+      ];
+    });
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testMkDotnetAdditionalSdksRejectOutputHash = {
+    expr = builtins.tryEval (dotnet.mkDotnet {
+      sdkVersion = "10.0.103";
+      outputHash = validOutputHash;
+      additionalSdks = [
+        {
+          sdkVersion = "9.0.404";
+          outputHash = validOutputHash;
+        }
+      ];
+    });
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testMkDotnetAdditionalSdksRejectWorkloads = {
+    expr = builtins.tryEval (dotnet.mkDotnet {
+      sdkVersion = "10.0.103";
+      outputHash = validOutputHash;
+      additionalSdks = [
+        {
+          sdkVersion = "9.0.404";
+          workloads = ["android"];
+        }
+      ];
+    });
     expected = {
       success = false;
       value = false;

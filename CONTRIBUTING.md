@@ -29,7 +29,7 @@ nix develop
 nix run github:nix-community/nix-unit -- --flake '.#tests'
 
 # Integration tests
-nix build .#checks.<system>.integration-test --no-link
+nix build .#checks.<system>.integration-tests --no-link
 
 # All checks
 nix flake check

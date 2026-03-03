@@ -2,7 +2,6 @@
   inherit
     (pkgs.lib)
     concatStringsSep
-    map
     match
     hasAttr
     replaceStrings
