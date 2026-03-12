@@ -15,16 +15,13 @@ in
 
     src = ./integration;
 
-    nativeBuildInputs = [pkgs.cacert];
-
-    # Configure .NET CLI environment (absolute paths required)
-    DOTNET_ROOT = "${dotnetSdk}";
+    nativeBuildInputs = [
+      pkgs.cacert
+      dotnetSdk
+    ];
 
     buildPhase = ''
       runHook preBuild
-
-      # Add dotnet to PATH
-      export PATH="${dotnetSdk}:$PATH"
 
       # Use absolute paths for .NET CLI environment
       export DOTNET_CLI_HOME="$PWD/.dotnet-cli-home"
@@ -35,8 +32,20 @@ in
       mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH" "$HOME"
 
       echo "=== Integration Test: Building .NET Project ==="
+      echo "dotnet on PATH: $(command -v dotnet)"
+      echo "DOTNET_ROOT: $DOTNET_ROOT"
       echo "SDK Version: $(dotnet --version)"
       echo ""
+
+      if [ "$(command -v dotnet)" != "${dotnetSdk}/bin/dotnet" ]; then
+        echo "ERROR: dotnet did not resolve to the mkDotnet package"
+        exit 1
+      fi
+
+      if [ "$DOTNET_ROOT" != "${dotnetSdk}" ]; then
+        echo "ERROR: DOTNET_ROOT was not exported by the setup hook"
+        exit 1
+      fi
 
       # Restore NuGet packages
       echo "Step 1: Restoring NuGet packages..."

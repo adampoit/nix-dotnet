@@ -53,7 +53,7 @@
 
           for entry in "$out/.runtime"/*; do
             name="$(basename "$entry")"
-            if [ "$name" != "dotnet" ]; then
+            if [ "$name" != "bin" ] && [ "$name" != "dotnet" ]; then
               ln -s ".runtime/$name" "$out/$name"
             fi
           done
@@ -62,10 +62,18 @@
             '#!${pkgs.bash}/bin/bash' \
             'export LD_LIBRARY_PATH="${dotnetLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"' \
             'script_dir="$(cd "$(dirname "$0")" && pwd)"' \
-            'export DOTNET_ROOT="$script_dir/.runtime"' \
+            'export DOTNET_ROOT="$script_dir"' \
             'exec "$script_dir/.runtime/dotnet" "$@"' \
             > "$out/dotnet"
           chmod +x "$out/dotnet"
+
+          mkdir -p "$out/bin"
+          printf '%s\n' \
+            '#!${pkgs.bash}/bin/bash' \
+            'sdk_root="$(cd "$(dirname "$0")/.." && pwd)"' \
+            'exec "$sdk_root/dotnet" "$@"' \
+            > "$out/bin/dotnet"
+          chmod +x "$out/bin/dotnet"
 
           chmod -R a-w "$out"
 
@@ -214,6 +222,15 @@
           rm -f global.json
         ''}
 
+        mkdir -p "$out/bin" "$out/nix-support"
+
+        ln -s ../dotnet "$out/bin/dotnet"
+
+        cat > "$out/nix-support/setup-hook" <<'EOF'
+        dotnetSdkRoot="$(cd "$(dirname "''${BASH_SOURCE[0]}")/.." && pwd)"
+        export DOTNET_ROOT="$dotnetSdkRoot"
+        EOF
+
         echo "Installation complete"
         echo "SDK Version: $($out/dotnet --version)"
 
@@ -247,6 +264,7 @@
         homepage = "https://dotnet.microsoft.com/";
         license = licenses.mit;
         maintainers = [];
+        mainProgram = "dotnet";
         platforms = platforms.all;
       };
     };
