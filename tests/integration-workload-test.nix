@@ -18,14 +18,11 @@ in
     nativeBuildInputs = [
       pkgs.cacert
       pkgs.gnugrep
+      dotnetSdk
     ];
-
-    DOTNET_ROOT = "${dotnetSdk}";
 
     buildPhase = ''
       runHook preBuild
-
-      export PATH="${dotnetSdk}:$PATH"
 
       export DOTNET_CLI_HOME="$PWD/.dotnet-cli-home"
       export NUGET_PACKAGES="$PWD/.nuget/packages"

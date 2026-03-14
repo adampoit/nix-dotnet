@@ -315,6 +315,11 @@ in {
     expected = "dotnet-sdk-android";
   };
 
+  testMkDotnetMainProgram = {
+    expr = (mkDotnetFrom validGlobalJson [] validOutputHash).meta.mainProgram;
+    expected = "dotnet";
+  };
+
   testMkDotnetPassthruWorkloads = {
     expr =
       (mkDotnetFrom validGlobalJson [

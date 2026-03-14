@@ -19,22 +19,22 @@
         pkgs = nixpkgs.legacyPackages.${system};
         dotnet = import ./src/nix-dotnet.nix {inherit pkgs;};
         sdkOutputHashes = {
-          aarch64-darwin = "sha256-QrDQHIjGxhQu0dqbXFw5idaQ74G6qml0xoNPX+rbEPs=";
+          aarch64-darwin = "sha256-YxvVtFxTcXR982ar15JUpKhv05WQ4AE4+xH1wxk3yz4=";
           aarch64-linux = "sha256-t4lHygbZMs2Mdry+rqSgSxhXWubWrC3uj1iIogyBE/U=";
-          x86_64-darwin = "sha256-bWnl7oDH6ywF2iwFlQ+b1NZ6f5JvRtauaqIQIlz4Mzg=";
-          x86_64-linux = "sha256-zavpTqfPO/x1YFvGww+QBzyK70eGi50TaA5wkaGziFg=";
+          x86_64-darwin = "sha256-LX1c87zNmSv/ylVsOWoe9cySVotLeoQ2m05mW6ooT8E=";
+          x86_64-linux = "sha256-kp0avinB5M1ZpWbdBBArpdsMVdRXqDX3FPF2lSBnWt0=";
         };
         workloadOutputHashes = {
-          aarch64-darwin = "sha256-PXo7/caO02xsbx2qWcUIXtyvvr2ePifPdvMVzO9+JUE=";
+          aarch64-darwin = "sha256-PPi+v18l/RAY9AtC92wPJapHfXHHUNYFcjHjmB3GkZM=";
           aarch64-linux = "sha256-IOo5a1RSjnouRl79Xru01XYdqtiNXS+pgrCa1Fx4+sI=";
-          x86_64-darwin = "sha256-gJPf567EoBmF22ANZX9qFEA/wtZHU/+GBd6rbaj9VUQ=";
-          x86_64-linux = "sha256-R6+gCgcfrTv1NYQyI0/3YXmjDRvvooPEOjCR59WSpfk=";
+          x86_64-darwin = "sha256-7KqU4jd0twDkplMjtaBSVFv/iYwYG1rDoflyKyZwaFE=";
+          x86_64-linux = "sha256-fvgGMjgceFxb4SpkAZVbxlFD3xBGoc8eehSXdn9OLgA=";
         };
         multiSdkOutputHashes = {
-          aarch64-darwin = "sha256-McAAMwZCOfvdOKOCjNRKYmpWbdtUQfz03WdoAJImv5c=";
+          aarch64-darwin = "sha256-+hbEyapmxU8+JLahaIhv47vyNgyvP51QZJsSIEWx9lg=";
           aarch64-linux = "sha256-olZbB/1rbLs587K9NQXBQ9o2pQH0WSTUjaBORlJVD+4=";
-          x86_64-darwin = "sha256-5DNjlU1VCJs3Soqemq4gU3YdEFXvIol30qad0udUiuU=";
-          x86_64-linux = "sha256-3LAIxMUQYqrnEaOAoYA/seSFZuE1pyVL97TjC891VCs=";
+          x86_64-darwin = "sha256-mHNWI7TtbIKXZSlcrxQFSjmU9f+3Em4u2lqIKSmBiso=";
+          x86_64-linux = "sha256-qIqid6wnv4OBC5BuvvZL1FvFXKge7k1PzrdqXpIk5fc=";
         };
         outputHashFor = hashes:
           if builtins.hasAttr system hashes

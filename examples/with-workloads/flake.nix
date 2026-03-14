@@ -12,7 +12,7 @@
     pkgs = nixpkgs.legacyPackages.${system};
   in {
     devShells.${system}.default = pkgs.mkShell {
-      buildInputs = [
+      packages = [
         (nix-dotnet.lib.${system}.mkDotnet {
           globalJsonPath = ./global.json;
           workloads = ["android" "maui"];

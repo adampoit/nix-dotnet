@@ -15,9 +15,9 @@
       dotnet = import ../../src/nix-dotnet.nix {inherit pkgs;};
       sdkOutputHash =
         if system == "aarch64-darwin"
-        then "sha256-QrDQHIjGxhQu0dqbXFw5idaQ74G6qml0xoNPX+rbEPs="
+        then "sha256-YxvVtFxTcXR982ar15JUpKhv05WQ4AE4+xH1wxk3yz4="
         else if system == "x86_64-linux"
-        then "sha256-zavpTqfPO/x1YFvGww+QBzyK70eGi50TaA5wkaGziFg="
+        then "sha256-kp0avinB5M1ZpWbdBBArpdsMVdRXqDX3FPF2lSBnWt0="
         else throw "No outputHash configured for system ${system}";
 
       dotnetSdk = dotnet.mkDotnet {
@@ -32,16 +32,13 @@
 
         src = ./.;
 
-        nativeBuildInputs = [pkgs.cacert];
-
-        # Configure .NET CLI environment
-        DOTNET_ROOT = "${dotnetSdk}";
+        nativeBuildInputs = [
+          pkgs.cacert
+          dotnetSdk
+        ];
 
         buildPhase = ''
           runHook preBuild
-
-          # Add dotnet to PATH
-          export PATH="${dotnetSdk}:$PATH"
 
           # Use absolute paths for .NET CLI environment
           export DOTNET_CLI_HOME="$PWD/.dotnet-cli-home"
