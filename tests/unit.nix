@@ -369,11 +369,27 @@ in {
     expected = true;
   };
 
+  testMkDotnetBuildDotnetModuleTargetPackages = {
+    expr = let
+      sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
+    in
+      sdk ? targetPackages && builtins.hasAttr "osx-arm64" sdk.targetPackages;
+    expected = true;
+  };
+
   testMkDotnetPassthruBuildDotnetModulePackages = {
     expr = let
       sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
     in
       builtins.length sdk.passthru.packages == 1 && builtins.elemAt sdk.passthru.packages 0 == sdk;
+    expected = true;
+  };
+
+  testMkDotnetPassthruBuildDotnetModuleTargetPackages = {
+    expr = let
+      sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
+    in
+      sdk.passthru ? targetPackages && builtins.hasAttr "osx-arm64" sdk.passthru.targetPackages;
     expected = true;
   };
 
