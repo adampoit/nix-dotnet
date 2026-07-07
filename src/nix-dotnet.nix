@@ -16,6 +16,12 @@
   defaultInstallScriptUrl = "https://raw.githubusercontent.com/dotnet/install-scripts/13cdf4607a097b262a91722458e860ea2162c838/src/dotnet-install.sh";
   defaultInstallScriptSha256 = "sha256-CC92heFWc4obLi7YOBpiGHDUzo6MWSeANFVvBcGG6y4=";
   dotnetLibraryPath = pkgs.lib.makeLibraryPath [pkgs.stdenv.cc.cc pkgs.zlib pkgs.icu pkgs.openssl];
+  supportedPlatforms = [
+    "x86_64-linux"
+    "aarch64-linux"
+    "x86_64-darwin"
+    "aarch64-darwin"
+  ];
 
   finalizeRawSdk = rawSdk:
     if pkgs.stdenv.isLinux
@@ -265,7 +271,7 @@
         license = licenses.mit;
         maintainers = [];
         mainProgram = "dotnet";
-        platforms = platforms.all;
+        platforms = supportedPlatforms;
       };
     };
   in
