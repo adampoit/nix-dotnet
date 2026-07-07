@@ -16,6 +16,12 @@
   defaultInstallScriptUrl = "https://dot.net/v1/dotnet-install.sh";
   defaultInstallScriptSha256 = "0hp4gjss641gabh24wf1xsxp9y1vb48fna5vc9ag24rp614nhahh";
   dotnetLibraryPath = pkgs.lib.makeLibraryPath [pkgs.stdenv.cc.cc pkgs.zlib pkgs.icu pkgs.openssl];
+  supportedPlatforms = [
+    "x86_64-linux"
+    "aarch64-linux"
+    "x86_64-darwin"
+    "aarch64-darwin"
+  ];
 
   finalizeRawSdk = rawSdk:
     if pkgs.stdenv.isLinux
@@ -265,7 +271,7 @@
         license = licenses.mit;
         maintainers = [];
         mainProgram = "dotnet";
-        platforms = platforms.all;
+        platforms = supportedPlatforms;
       };
     };
   in
