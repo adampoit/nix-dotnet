@@ -353,6 +353,30 @@ in {
     ];
   };
 
+  testMkDotnetBuildDotnetModulePackages = {
+    expr = let
+      sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
+    in
+      builtins.length sdk.packages == 1 && builtins.elemAt sdk.packages 0 == sdk;
+    expected = true;
+  };
+
+  testMkDotnetBuildDotnetModuleIcu = {
+    expr = let
+      sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
+    in
+      sdk ? icu && sdk.icu ? outPath;
+    expected = true;
+  };
+
+  testMkDotnetPassthruBuildDotnetModulePackages = {
+    expr = let
+      sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
+    in
+      builtins.length sdk.passthru.packages == 1 && builtins.elemAt sdk.passthru.packages 0 == sdk;
+    expected = true;
+  };
+
   testMkDotnetRequiresVersionSource = {
     expr = builtins.tryEval (dotnet.mkDotnet {
       workloads = [];

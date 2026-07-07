@@ -17,10 +17,15 @@
   defaultInstallScriptSha256 = "0hp4gjss641gabh24wf1xsxp9y1vb48fna5vc9ag24rp614nhahh";
   dotnetLibraryPath = pkgs.lib.makeLibraryPath [pkgs.stdenv.cc.cc pkgs.zlib pkgs.icu pkgs.openssl];
 
+  buildDotnetModulePassthru = finalSdk: {
+    packages = [finalSdk];
+    icu = pkgs.icu;
+  };
+
   finalizeRawSdk = rawSdk:
     if pkgs.stdenv.isLinux
-    then
-      pkgs.stdenv.mkDerivation {
+    then let
+      finalSdk = pkgs.stdenv.mkDerivation {
         pname = rawSdk.pname;
         inherit (rawSdk) version;
 
@@ -80,9 +85,11 @@
           runHook postInstall
         '';
 
-        passthru = rawSdk.passthru // {inherit rawSdk;};
+        passthru = rawSdk.passthru // {inherit rawSdk;} // buildDotnetModulePassthru finalSdk;
         meta = rawSdk.meta;
-      }
+      };
+    in
+      finalSdk
     else rawSdk;
 
   mkDotnetSdk = {
@@ -251,10 +258,12 @@
 
       dontFixup = true;
 
-      passthru = {
-        inherit sdkVersion workloads;
-        additionalSdkVersions = validatedAdditionalSdkVersions;
-      };
+      passthru =
+        {
+          inherit sdkVersion workloads;
+          additionalSdkVersions = validatedAdditionalSdkVersions;
+        }
+        // buildDotnetModulePassthru rawSdk;
 
       meta = with pkgs.lib; {
         description =
