@@ -23,9 +23,17 @@
     "aarch64-darwin"
   ];
 
-  buildDotnetModulePassthru = finalSdk: {
+  buildDotnetModulePassthru = finalSdk: sdkVersion: let
+    major = (lib.parseSdkVersion sdkVersion).major;
+    sdkAttr = "sdk_${major}_0";
+    dotnetCoreSdk = pkgs.dotnetCorePackages.${sdkAttr} or null;
+  in {
     packages = [finalSdk];
     icu = pkgs.icu;
+    targetPackages =
+      if dotnetCoreSdk == null
+      then {}
+      else dotnetCoreSdk.targetPackages or {};
   };
 
   finalizeRawSdk = rawSdk:
@@ -91,7 +99,7 @@
           runHook postInstall
         '';
 
-        passthru = rawSdk.passthru // {inherit rawSdk;} // buildDotnetModulePassthru finalSdk;
+        passthru = rawSdk.passthru // {inherit rawSdk;} // buildDotnetModulePassthru finalSdk rawSdk.version;
         meta = rawSdk.meta;
       };
     in
@@ -269,7 +277,7 @@
           inherit sdkVersion workloads;
           additionalSdkVersions = validatedAdditionalSdkVersions;
         }
-        // buildDotnetModulePassthru rawSdk;
+        // buildDotnetModulePassthru rawSdk validatedSdkVersion;
 
       meta = with pkgs.lib; {
         description =
