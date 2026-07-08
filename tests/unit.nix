@@ -353,6 +353,33 @@ in {
     ];
   };
 
+  testMkDotnetAcceptsInstallScriptOverrides = {
+    expr =
+      (dotnet.mkDotnet {
+        globalJsonPath = validGlobalJson;
+        outputHash = validOutputHash;
+        installScriptUrl = "https://example.com/dotnet-install.sh";
+        installScriptSha256 = "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
+      }).passthru.installScriptUrl;
+    expected = "https://example.com/dotnet-install.sh";
+  };
+
+  testMkDotnetAdditionalSdksAcceptInstallScriptOverrides = {
+    expr =
+      (dotnet.mkDotnet {
+        sdkVersion = "10.0.103";
+        outputHash = validOutputHash;
+        installScriptUrl = "https://example.com/dotnet-install.sh";
+        installScriptSha256 = "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
+        additionalSdks = [
+          {
+            sdkVersion = "9.0.404";
+          }
+        ];
+      }).passthru.installScriptSha256;
+    expected = "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
+  };
+
   testMkDotnetBuildDotnetModulePackages = {
     expr = let
       sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
