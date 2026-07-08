@@ -45,11 +45,13 @@ jobs:
       - name: Check formatting
         run: nix build .#checks.x86_64-linux.fmt --no-link
 
-  # Integration tests (actual SDK downloads)
-  integration-tests:
+  # End-to-end tests exercising the consumer path (nix develop)
+  e2e-tests:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+        scenario: [basic, workloads, multi-sdk]
+      fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -62,12 +64,70 @@ jobs:
           mkdir -p ~/.config/nix
           echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
-      - name: Run integration tests
+      - name: "Run e2e: ${{ matrix.scenario }}"
         run: |
-          system=$(nix eval --impure --raw --expr builtins.currentSystem)
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            nix build .#checks.${system}.integration-tests --no-link --option sandbox false
-          else
-            nix build .#checks.${system}.integration-tests --no-link
-          fi
+          set -euo pipefail
+
+          export HOME="$PWD/.home"
+          export NUGET_PACKAGES="$PWD/.nuget/packages"
+          mkdir -p "$HOME" "$NUGET_PACKAGES"
+
+          nix develop ".#e2e-${{ matrix.scenario }}" --command bash -c '
+            set -euo pipefail
+
+            # Run from tests/e2e/basic/ so dotnet finds the clean global.json
+            # (the repo root global.json has workloadVersion which basic/multi-sdk
+            # shells don"t carry, causing spurious manifest-not-found errors).
+            cd tests/e2e/basic
+
+            echo "=== SDK Version ==="
+            dotnet --version
+
+            case "${{ matrix.scenario }}" in
+              workloads)
+                echo ""
+                echo "=== Verifying workload installation ==="
+                dotnet workload list | grep -qE "^android[[:space:]]" \
+                  && echo "android workload: found" \
+                  || { echo "ERROR: android workload missing"; exit 1; }
+                ;;
+              multi-sdk)
+                echo ""
+                echo "=== Verifying additional SDKs ==="
+                dotnet --list-sdks | grep -qE "^9\.0\.304[[:space:]]" \
+                  && echo "9.0.304 SDK: found" \
+                  || { echo "ERROR: 9.0.304 SDK missing"; exit 1; }
+                ;;
+            esac
+
+            echo ""
+            echo "=== Restore, build, test ==="
+            dotnet restore src/TestSolution.slnx --locked-mode
+            dotnet build src/TestSolution.slnx --configuration Release --no-restore
+            dotnet test src/TestApp.Tests/TestApp.Tests.csproj \
+              --configuration Release --no-build --verbosity normal
+
+            echo ""
+            echo "=== e2e: ${{ matrix.scenario }} passed ==="
+          '
+        timeout-minutes: 20
+
+  # End-to-end test: buildDotnetModule consumer path (nix build)
+  e2e-build-dotnet-module:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Enable Flakes
+        run: |
+          mkdir -p ~/.config/nix
+          echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+
+      - name: "Run e2e: build-dotnet-module"
+        run: |
+          nix build .#e2e-build-dotnet-module --no-link --print-build-logs --option sandbox false
+          nix run .#e2e-build-dotnet-module
         timeout-minutes: 20

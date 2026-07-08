@@ -36,35 +36,32 @@
         x86_64-darwin = "sha256-mHNWI7TtbIKXZSlcrxQFSjmU9f+3Em4u2lqIKSmBiso=";
         x86_64-linux = "sha256-qIqid6wnv4OBC5BuvvZL1FvFXKge7k1PzrdqXpIk5fc=";
       };
-      integrationSingleSdkTest = import ./tests/integration-test.nix {
-        inherit pkgs dotnet;
+
+      basicExample = dotnet.mkDotnet {
+        globalJsonPath = ./tests/e2e/basic/global.json;
+        workloads = [];
         outputHashes = sdkOutputHashes;
       };
-      integrationWorkloadTest = import ./tests/integration-workload-test.nix {
-        inherit pkgs dotnet;
+
+      workloadExample = dotnet.mkDotnet {
+        globalJsonPath = ./global.json;
+        workloads = ["android"];
         outputHashes = workloadOutputHashes;
       };
-      integrationMultiSdkTest = import ./tests/integration-multi-sdk-test.nix {
-        inherit pkgs dotnet;
+
+      multiSdkExample = dotnet.mkDotnet {
+        sdkVersion = "10.0.103";
+        additionalSdks = [
+          {sdkVersion = "9.0.304";}
+        ];
         outputHashes = multiSdkOutputHashes;
       };
-      buildDotnetModuleTest = import ./tests/build-dotnet-module-test.nix {
+
+      e2eBuildDotnetModule = import ./tests/e2e/build-dotnet-module {
         inherit pkgs dotnet;
         outputHashes = sdkOutputHashes;
       };
-      integrationTests =
-        pkgs.runCommand
-        "integration-tests"
-        {
-          buildInputs = [
-            integrationSingleSdkTest
-            integrationWorkloadTest
-            integrationMultiSdkTest
-          ];
-        }
-        ''
-          touch $out
-        '';
+
       unitTests = import ./tests/unit.nix {
         lib = dotnet.internal;
         inherit dotnet;
@@ -83,31 +80,35 @@
         (builtins.attrNames unitTests);
     in {
       lib = dotnet;
-      packages = let
-        basicExample = dotnet.mkDotnet {
-          globalJsonPath = ./global.json;
-          workloads = [];
-          outputHashes = sdkOutputHashes;
-        };
 
-        workloadExample = dotnet.mkDotnet {
-          globalJsonPath = ./global.json;
-          workloads = ["android"];
-          outputHashes = workloadOutputHashes;
-        };
-      in {
+      packages = {
         default = basicExample;
         basic-example = basicExample;
         workload-example = workloadExample;
-        build-dotnet-module-test = buildDotnetModuleTest;
+        multi-sdk-example = multiSdkExample;
+        e2e-build-dotnet-module = e2eBuildDotnetModule;
       };
 
-      devShells.default = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          alejandra
-          nil
-          nix-unit
-        ];
+      devShells = {
+        default = pkgs.mkShell {
+          buildInputs = with pkgs; [
+            alejandra
+            nil
+            nix-unit
+          ];
+        };
+
+        e2e-basic = pkgs.mkShell {
+          packages = [basicExample pkgs.cacert];
+        };
+
+        e2e-workloads = pkgs.mkShell {
+          packages = [workloadExample pkgs.cacert];
+        };
+
+        e2e-multi-sdk = pkgs.mkShell {
+          packages = [multiSdkExample pkgs.cacert];
+        };
       };
 
       checks = {
@@ -123,9 +124,6 @@
         unit-tests = builtins.deepSeq unitTestAssertions (pkgs.runCommand "unit-tests" {} ''
           echo "${toString (builtins.length (builtins.attrNames unitTests))} unit tests passed" > $out
         '');
-
-        integration-tests = integrationTests;
-        build-dotnet-module = buildDotnetModuleTest;
       };
     };
   in {

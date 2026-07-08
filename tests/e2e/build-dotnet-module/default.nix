@@ -6,19 +6,19 @@
   inherit (pkgs) lib;
 
   dotnetSdk = dotnet.mkDotnet {
-    globalJsonPath = ./build-dotnet-module/global.json;
+    globalJsonPath = ./global.json;
     workloads = [];
     inherit outputHashes;
   };
 in
   pkgs.buildDotnetModule {
-    pname = "nix-dotnet-build-dotnet-module-test";
+    pname = "nix-dotnet-build-dotnet-module-e2e";
     version = "1.0.0";
 
-    src = ./build-dotnet-module/src;
+    src = ./src;
 
     projectFile = "HelloApp/HelloApp.csproj";
-    nugetDeps = ./build-dotnet-module/nuget-deps.json;
+    nugetDeps = ./nuget-deps.json;
 
     dotnet-sdk = dotnetSdk;
     dotnet-runtime = pkgs.dotnetCorePackages.aspnetcore_10_0;
@@ -26,7 +26,7 @@ in
     executables = ["HelloApp"];
 
     meta = {
-      description = "Repro for buildDotnetModule + nix-dotnet SDK (ref/runtime packs via dotnet-sdk.packages)";
+      description = "e2e test for buildDotnetModule with nix-dotnet SDK";
       mainProgram = "HelloApp";
       platforms = lib.platforms.unix;
     };

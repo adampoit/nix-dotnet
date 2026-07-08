@@ -18,3 +18,12 @@ result-*
 # Temporary files
 *.tmp
 *.log
+
+# .NET build outputs
+**/bin/
+**/obj/
+
+# e2e test runtime artifacts
+.dotnet-cli-home/
+.nuget/
+.home/

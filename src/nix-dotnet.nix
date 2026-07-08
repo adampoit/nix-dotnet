@@ -73,14 +73,20 @@
     fi
 
     dotnetConfigureCliHome() {
-      dotnetDefaultCliHome="$1"
       if [ -z "''${DOTNET_CLI_HOME:-}" ] || ! mkdir -p "$DOTNET_CLI_HOME" 2>/dev/null; then
-        export DOTNET_CLI_HOME="$dotnetDefaultCliHome"
-        mkdir -p "$DOTNET_CLI_HOME"
+        for candidate in \
+          "''${HOME:-}/.dotnet-cli-home" \
+          "''${TMPDIR:-/tmp}/dotnet-cli-home" \
+          "$PWD/.dotnet-cli-home"; do
+          if mkdir -p "$candidate" 2>/dev/null; then
+            export DOTNET_CLI_HOME="$candidate"
+            break
+          fi
+        done
       fi
     }
 
-    dotnetConfigureCliHome "''${TMPDIR:-/tmp}/dotnet-cli-home"
+    dotnetConfigureCliHome
 
     export DOTNET_CLI_TELEMETRY_OPTOUT="''${DOTNET_CLI_TELEMETRY_OPTOUT:-1}"
     export DOTNET_NOLOGO="''${DOTNET_NOLOGO:-1}"
@@ -93,7 +99,7 @@
     source ${nugetSetupHook}
 
     shellHook="''${shellHook:-}
-    if [ -z \"\''${DOTNET_CLI_HOME:-}\" ] || [[ \"\''${DOTNET_CLI_HOME}\" == /nix/var/nix/builds/* ]]; then
+    if [ -z \"\''${DOTNET_CLI_HOME:-}\" ] || [[ \"\''${DOTNET_CLI_HOME}\" == /nix/var/nix/builds/* || \"\''${DOTNET_CLI_HOME}\" == /build/* ]]; then
       export DOTNET_CLI_HOME=\"\''${PWD}/.dotnet-cli-home\"
       mkdir -p \"\''${DOTNET_CLI_HOME}\"
     fi
@@ -146,7 +152,7 @@
             'export LD_LIBRARY_PATH="${dotnetLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"' \
             'script_dir="$(cd "$(dirname "$0")" && pwd)"' \
             'export DOTNET_ROOT="$script_dir"' \
-            'export DOTNET_CLI_HOME="''${DOTNET_CLI_HOME:-''${TMPDIR:-/tmp}/dotnet-cli-home}"' \
+            'export DOTNET_CLI_HOME="''${DOTNET_CLI_HOME:-''${HOME:-$PWD}/.dotnet-cli-home}"' \
             'mkdir -p "$DOTNET_CLI_HOME"' \
             'export DOTNET_CLI_TELEMETRY_OPTOUT="''${DOTNET_CLI_TELEMETRY_OPTOUT:-1}"' \
             'export DOTNET_NOLOGO="''${DOTNET_NOLOGO:-1}"' \
