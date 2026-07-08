@@ -327,7 +327,7 @@
 
       passthru =
         {
-          inherit sdkVersion workloads;
+          inherit sdkVersion workloads installScriptUrl installScriptSha256;
           additionalSdkVersions = validatedAdditionalSdkVersions;
         }
         // buildDotnetModulePassthru rawSdk validatedSdkVersion;
@@ -390,19 +390,26 @@
       workloads = validatedWorkloads;
     };
 
-  mkDotnetSingle = config @ {outputHash, ...}: let
-    resolvedConfig = resolveDotnetConfig (removeAttrs config ["outputHash"]);
+  mkDotnetSingle = config @ {
+    outputHash,
+    installScriptUrl ? defaultInstallScriptUrl,
+    installScriptSha256 ? defaultInstallScriptSha256,
+    ...
+  }: let
+    resolvedConfig = resolveDotnetConfig (removeAttrs config ["outputHash" "installScriptUrl" "installScriptSha256"]);
   in
     mkDotnetSdk {
       sdkVersion = resolvedConfig.sdkVersion;
       workloads = resolvedConfig.workloads;
-      inherit outputHash;
+      inherit outputHash installScriptUrl installScriptSha256;
     };
 
   mkDotnetWithAdditional = {
     primaryConfig,
     additionalConfigs,
     outputHash,
+    installScriptUrl ? defaultInstallScriptUrl,
+    installScriptSha256 ? defaultInstallScriptSha256,
   }: let
     resolvedPrimary = resolveDotnetConfig primaryConfig;
     resolvedAdditional = map resolveDotnetConfig additionalConfigs;
@@ -416,7 +423,7 @@
         sdkVersion = resolvedPrimary.sdkVersion;
         workloads = resolvedPrimary.workloads;
         additionalSdkVersions = additionalVersions;
-        inherit outputHash;
+        inherit outputHash installScriptUrl installScriptSha256;
       };
 
   mkDotnet = args @ {additionalSdks ? [], ...}: let
@@ -435,9 +442,11 @@
     then mkDotnetSingle primaryArgs
     else
       mkDotnetWithAdditional {
-        primaryConfig = removeAttrs primaryArgs ["outputHash"];
+        primaryConfig = removeAttrs primaryArgs ["outputHash" "installScriptUrl" "installScriptSha256"];
         additionalConfigs = normalizedAdditionalConfigs;
         outputHash = primaryArgs.outputHash;
+        installScriptUrl = primaryArgs.installScriptUrl or defaultInstallScriptUrl;
+        installScriptSha256 = primaryArgs.installScriptSha256 or defaultInstallScriptSha256;
       };
 in {
   inherit mkDotnet;
