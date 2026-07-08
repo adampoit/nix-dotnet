@@ -436,7 +436,14 @@ in {
     expr = let
       sdk = mkDotnetFrom validGlobalJson [];
     in
-      builtins.length sdk.packages == 1 && builtins.elemAt sdk.packages 0 == sdk;
+      # packages must be the nixpkgs ref/runtime packs (so buildDotnetModule can
+      # restore offline), not just the SDK derivation itself.
+      builtins.length sdk.packages
+      > 1
+      && builtins.any (
+        p: p ? name && builtins.match "Microsoft.NETCore.App.Ref-.*" p.name != null
+      )
+      sdk.packages;
     expected = true;
   };
 
@@ -460,7 +467,12 @@ in {
     expr = let
       sdk = mkDotnetFrom validGlobalJson [];
     in
-      builtins.length sdk.passthru.packages == 1 && builtins.elemAt sdk.passthru.packages 0 == sdk;
+      builtins.length sdk.passthru.packages
+      > 1
+      && builtins.any (
+        p: p ? name && builtins.match "Microsoft.AspNetCore.App.Ref-.*" p.name != null
+      )
+      sdk.passthru.packages;
     expected = true;
   };
 

@@ -19,6 +19,9 @@ in
 
     src = ./integration;
 
+    # Intentionally restores from nuget.org (network).
+    keepNugetConfig = true;
+
     nativeBuildInputs = [
       pkgs.cacert
       pkgs.gnugrep

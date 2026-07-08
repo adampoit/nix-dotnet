@@ -37,7 +37,15 @@
     sdkAttr = "sdk_${major}_0";
     dotnetCoreSdk = pkgs.dotnetCorePackages.${sdkAttr} or null;
   in {
-    packages = [finalSdk];
+    # buildDotnetModule adds `dotnet-sdk.packages` to buildInputs and links them
+    # into the offline NuGet source via configureNuget. Our SDK only ships the
+    # SDK itself; the reference packs and host runtime packs (as NuGet
+    # derivations exposing share/nuget/source) come from the matching nixpkgs
+    # SDK, which builds them from the same .NET major version.
+    packages =
+      if dotnetCoreSdk == null
+      then [finalSdk]
+      else dotnetCoreSdk.packages or [finalSdk];
     icu = pkgs.icu;
     targetPackages =
       if dotnetCoreSdk == null
@@ -45,9 +53,24 @@
       else dotnetCoreSdk.targetPackages or {};
   };
 
+  # The nixpkgs dotnet SDK setup hook provides the offline NuGet machinery
+  # (addNugetInputs + configureNuget, registered in preConfigurePhases) that
+  # buildDotnetModule relies on. It is parameterised by @lndir@ and @xmlstarlet@;
+  # substitute those so we depend only on those two (light) tools rather than the
+  # whole nixpkgs SDK closure.
+  nugetSetupHook =
+    pkgs.replaceVars
+    (pkgs.path + "/pkgs/development/compilers/dotnet/dotnet-sdk-setup-hook.sh")
+    {inherit (pkgs) lndir xmlstarlet;};
+
   setupHook = ''
     dotnetSdkRoot="$(cd "$(dirname "''${BASH_SOURCE[0]}")/.." && pwd)"
     export DOTNET_ROOT="$dotnetSdkRoot"
+
+    # Dotnet expects a writable home directory for its configuration files.
+    if [ ! -w "''${HOME:-}" ]; then
+      export HOME="$(mktemp -d)"
+    fi
 
     dotnetConfigureCliHome() {
       dotnetDefaultCliHome="$1"
@@ -62,7 +85,12 @@
     export DOTNET_CLI_TELEMETRY_OPTOUT="''${DOTNET_CLI_TELEMETRY_OPTOUT:-1}"
     export DOTNET_NOLOGO="''${DOTNET_NOLOGO:-1}"
     export DOTNET_SKIP_FIRST_TIME_EXPERIENCE="''${DOTNET_SKIP_FIRST_TIME_EXPERIENCE:-1}"
+    export DOTNET_SKIP_WORKLOAD_INTEGRITY_CHECK="''${DOTNET_SKIP_WORKLOAD_INTEGRITY_CHECK:-1}"
     export DOTNET_GENERATE_ASPNET_CERTIFICATE="''${DOTNET_GENERATE_ASPNET_CERTIFICATE:-0}"
+
+    # Bring in the nixpkgs offline NuGet machinery (configureNuget, addNugetInputs)
+    # so buildDotnetModule can restore without reaching nuget.org.
+    source ${nugetSetupHook}
 
     shellHook="''${shellHook:-}
     if [ -z \"\''${DOTNET_CLI_HOME:-}\" ] || [[ \"\''${DOTNET_CLI_HOME}\" == /nix/var/nix/builds/* ]]; then

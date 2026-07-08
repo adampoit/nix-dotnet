@@ -15,6 +15,11 @@ in
 
     src = ./integration;
 
+    # These tests intentionally restore from nuget.org (network), so keep the
+    # upstream NuGet config rather than letting configureNuget strip it to the
+    # offline _nix source.
+    keepNugetConfig = true;
+
     nativeBuildInputs = [
       pkgs.cacert
       dotnetSdk

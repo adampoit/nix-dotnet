@@ -48,6 +48,10 @@
         inherit pkgs dotnet;
         outputHashes = multiSdkOutputHashes;
       };
+      buildDotnetModuleTest = import ./tests/build-dotnet-module-test.nix {
+        inherit pkgs dotnet;
+        outputHashes = sdkOutputHashes;
+      };
       integrationTests =
         pkgs.runCommand
         "integration-tests"
@@ -95,6 +99,7 @@
         default = basicExample;
         basic-example = basicExample;
         workload-example = workloadExample;
+        build-dotnet-module-test = buildDotnetModuleTest;
       };
 
       devShells.default = pkgs.mkShell {
@@ -120,6 +125,7 @@
         '');
 
         integration-tests = integrationTests;
+        build-dotnet-module = buildDotnetModuleTest;
       };
     };
   in {
