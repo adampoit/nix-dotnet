@@ -15,7 +15,7 @@
       packages = [
         (nix-dotnet.lib.${system}.mkDotnet {
           sdkVersion = "10.0.103";
-          outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+          outputHashes.${system} = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
           additionalSdks = [
             {
               sdkVersion = "9.0.304";

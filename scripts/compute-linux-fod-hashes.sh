@@ -54,7 +54,7 @@ in
   dotnet.mkDotnet {
     globalJsonPath = /work/global.json;
     workloads = ${workloads_expr};
-    outputHash = pkgs.lib.fakeHash;
+    outputHashes.x86_64-linux = pkgs.lib.fakeHash;
   }
 EOF_NIX
 )\"; nix --extra-experimental-features 'nix-command flakes' build --impure --option sandbox false --option filter-syscalls false --expr \"\$expr\" --no-link"
@@ -92,7 +92,7 @@ Computed hashes for x86_64-linux:
   basic-example:    ${basic_hash}
   workload-example: ${workload_hash}
 
-Update flake.nix x86_64-linux branches to:
+Update flake.nix x86_64-linux hashes to:
   basic-example    -> \"${basic_hash}\"
   workload-example -> \"${workload_hash}\"
 EOF

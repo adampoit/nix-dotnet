@@ -36,21 +36,17 @@
         x86_64-darwin = "sha256-mHNWI7TtbIKXZSlcrxQFSjmU9f+3Em4u2lqIKSmBiso=";
         x86_64-linux = "sha256-qIqid6wnv4OBC5BuvvZL1FvFXKge7k1PzrdqXpIk5fc=";
       };
-      outputHashFor = hashes:
-        if builtins.hasAttr system hashes
-        then hashes.${system}
-        else throw "No outputHash configured for system ${system}";
       integrationSingleSdkTest = import ./tests/integration-test.nix {
         inherit pkgs dotnet;
-        outputHash = outputHashFor sdkOutputHashes;
+        outputHashes = sdkOutputHashes;
       };
       integrationWorkloadTest = import ./tests/integration-workload-test.nix {
         inherit pkgs dotnet;
-        outputHash = outputHashFor workloadOutputHashes;
+        outputHashes = workloadOutputHashes;
       };
       integrationMultiSdkTest = import ./tests/integration-multi-sdk-test.nix {
         inherit pkgs dotnet;
-        outputHash = outputHashFor multiSdkOutputHashes;
+        outputHashes = multiSdkOutputHashes;
       };
       integrationTests =
         pkgs.runCommand
@@ -87,13 +83,13 @@
         basicExample = dotnet.mkDotnet {
           globalJsonPath = ./global.json;
           workloads = [];
-          outputHash = outputHashFor sdkOutputHashes;
+          outputHashes = sdkOutputHashes;
         };
 
         workloadExample = dotnet.mkDotnet {
           globalJsonPath = ./global.json;
           workloads = ["android"];
-          outputHash = outputHashFor workloadOutputHashes;
+          outputHashes = workloadOutputHashes;
         };
       in {
         default = basicExample;

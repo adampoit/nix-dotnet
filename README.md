@@ -35,7 +35,12 @@ A Nix module that builds reproducible .NET SDK derivations from `global.json` or
           (nix-dotnet.lib.${system}.mkDotnet {
             globalJsonPath = ./global.json;
             workloads = [ "android" "maui" ];
-            outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            outputHashes = {
+              x86_64-linux = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+              aarch64-linux = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+              x86_64-darwin = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+              aarch64-darwin = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            };
           })
         ];
       };
@@ -57,7 +62,12 @@ nix-dotnet.lib.${system}.mkDotnet {
       sdkVersion = "9.0.304";
     }
   ];
-  outputHash = "sha256-...";       # Required for fixed-output
+  outputHashes = {
+    x86_64-linux = "sha256-...";
+    aarch64-linux = "sha256-...";
+    x86_64-darwin = "sha256-...";
+    aarch64-darwin = "sha256-...";
+  };
 }
 ```
 
@@ -68,22 +78,23 @@ nix-dotnet.lib.${system}.mkDotnet {
 - `workloadVersion` - Workload manifest version when using explicit `sdkVersion` (optional)
 - `workloads` - List of workload names (optional, versions from `global.json` or `workloadVersion`)
 - `additionalSdks` - Extra SDK configs to merge into the same `dotnet` installation (optional, no per-SDK hash)
-- `outputHash` - Fixed-output derivation hash (required)
+- `outputHashes` - Attribute set of fixed-output derivation hashes keyed by Nix system
 
 `additionalSdks` lets one `dotnet` command expose multiple SDK versions, so `dotnet --list-sdks` can show entries like .NET 10 and .NET 9 together.
 
-Use one top-level `outputHash` for the whole combined installation.
+Use one top-level `outputHashes` set for the whole combined installation.
 
 Use `checks.<system>.integration-tests` to run all integration checks that are configured for that system.
 
 _Note_: `additionalSdks` entries do not support installing workloads.
 
-### Getting the outputHash
+### Getting output hashes
 
-1. Use a placeholder hash
-2. Build: `nix build` (fails with "hash mismatch")
-3. Copy the "got:" hash from the error
-4. Update your flake with the correct hash
+The SDK output hash is platform-specific, so `mkDotnet` requires hashes keyed by Nix system.
+
+1. Use placeholder hashes for each system you support.
+2. Build one system at a time, for example `nix build .#devShells.x86_64-linux.default`.
+3. Copy the `got:` hash from each mismatch error into the matching `outputHashes.<system>` entry.
 
 **Note:** Workload installation requires executing `dotnet` during build, so you cannot cross-compile workload-enabled SDKs (e.g., building Linux workloads on macOS).
 

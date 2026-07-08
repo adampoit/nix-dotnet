@@ -16,8 +16,8 @@
         (nix-dotnet.lib.${system}.mkDotnet {
           globalJsonPath = ./global.json;
           workloads = [];
-          # Required: fixed-output hash (placeholder below; replace after first build)
-          outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+          # Required: fixed-output hashes keyed by Nix system (replace after first build)
+          outputHashes.${system} = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
         })
       ];
 

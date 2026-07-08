@@ -1,7 +1,7 @@
 {
   pkgs,
   dotnet,
-  outputHash,
+  outputHashes,
 }: let
   dotnetSdk = dotnet.mkDotnet {
     globalJsonPath = ./integration/global.json;
@@ -10,7 +10,7 @@
         sdkVersion = "9.0.304";
       }
     ];
-    inherit outputHash;
+    inherit outputHashes;
   };
 in
   pkgs.stdenv.mkDerivation {

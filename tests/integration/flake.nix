@@ -13,17 +13,15 @@
     (system: let
       pkgs = nixpkgs.legacyPackages.${system};
       dotnet = import ../../src/nix-dotnet.nix {inherit pkgs;};
-      sdkOutputHash =
-        if system == "aarch64-darwin"
-        then "sha256-YxvVtFxTcXR982ar15JUpKhv05WQ4AE4+xH1wxk3yz4="
-        else if system == "x86_64-linux"
-        then "sha256-kp0avinB5M1ZpWbdBBArpdsMVdRXqDX3FPF2lSBnWt0="
-        else throw "No outputHash configured for system ${system}";
+      sdkOutputHashes = {
+        aarch64-darwin = "sha256-YxvVtFxTcXR982ar15JUpKhv05WQ4AE4+xH1wxk3yz4=";
+        x86_64-linux = "sha256-kp0avinB5M1ZpWbdBBArpdsMVdRXqDX3FPF2lSBnWt0=";
+      };
 
       dotnetSdk = dotnet.mkDotnet {
         globalJsonPath = ./global.json;
         workloads = [];
-        outputHash = sdkOutputHash;
+        outputHashes = sdkOutputHashes;
       };
     in {
       packages.integration-test = pkgs.stdenv.mkDerivation {

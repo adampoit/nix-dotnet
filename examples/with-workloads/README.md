@@ -13,7 +13,7 @@ SDK with MAUI, Android, and iOS workloads.
 nix develop
 ```
 
-The first build will fail with a hash mismatch. Copy the "got:" hash and update the `outputHash` in `flake.nix`.
+The first build will fail with a hash mismatch. Copy the "got:" hash and update the matching `outputHashes` entry in `flake.nix`.
 
 ## Available Workloads
 

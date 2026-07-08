@@ -23,6 +23,15 @@
     "aarch64-darwin"
   ];
 
+  resolveOutputHash = outputHashes:
+    validateOutputHash (
+      if outputHashes == null
+      then throw "outputHashes is required. Provide fixed-output hashes keyed by Nix system."
+      else if builtins.hasAttr pkgs.stdenv.hostPlatform.system outputHashes
+      then outputHashes.${pkgs.stdenv.hostPlatform.system}
+      else throw "outputHashes is missing an entry for system '${pkgs.stdenv.hostPlatform.system}'."
+    );
+
   buildDotnetModulePassthru = finalSdk: sdkVersion: let
     major = (lib.parseSdkVersion sdkVersion).major;
     sdkAttr = "sdk_${major}_0";
@@ -40,13 +49,27 @@
     dotnetSdkRoot="$(cd "$(dirname "''${BASH_SOURCE[0]}")/.." && pwd)"
     export DOTNET_ROOT="$dotnetSdkRoot"
 
-    export DOTNET_CLI_HOME="''${DOTNET_CLI_HOME:-''${TMPDIR:-/tmp}/dotnet-cli-home}"
-    mkdir -p "$DOTNET_CLI_HOME"
+    dotnetConfigureCliHome() {
+      dotnetDefaultCliHome="$1"
+      if [ -z "''${DOTNET_CLI_HOME:-}" ] || ! mkdir -p "$DOTNET_CLI_HOME" 2>/dev/null; then
+        export DOTNET_CLI_HOME="$dotnetDefaultCliHome"
+        mkdir -p "$DOTNET_CLI_HOME"
+      fi
+    }
+
+    dotnetConfigureCliHome "''${TMPDIR:-/tmp}/dotnet-cli-home"
 
     export DOTNET_CLI_TELEMETRY_OPTOUT="''${DOTNET_CLI_TELEMETRY_OPTOUT:-1}"
     export DOTNET_NOLOGO="''${DOTNET_NOLOGO:-1}"
     export DOTNET_SKIP_FIRST_TIME_EXPERIENCE="''${DOTNET_SKIP_FIRST_TIME_EXPERIENCE:-1}"
     export DOTNET_GENERATE_ASPNET_CERTIFICATE="''${DOTNET_GENERATE_ASPNET_CERTIFICATE:-0}"
+
+    shellHook="''${shellHook:-}
+    if [ -z \"\''${DOTNET_CLI_HOME:-}\" ] || [[ \"\''${DOTNET_CLI_HOME}\" == /nix/var/nix/builds/* ]]; then
+      export DOTNET_CLI_HOME=\"\''${PWD}/.dotnet-cli-home\"
+      mkdir -p \"\''${DOTNET_CLI_HOME}\"
+    fi
+    "
   '';
 
   finalizeRawSdk = rawSdk:
@@ -328,6 +351,7 @@
       passthru =
         {
           inherit sdkVersion workloads installScriptUrl installScriptSha256;
+          outputHash = validatedOutputHash;
           additionalSdkVersions = validatedAdditionalSdkVersions;
         }
         // buildDotnetModulePassthru rawSdk validatedSdkVersion;
@@ -391,27 +415,38 @@
     };
 
   mkDotnetSingle = config @ {
-    outputHash,
+    outputHash ? null,
+    outputHashes ? null,
     installScriptUrl ? defaultInstallScriptUrl,
     installScriptSha256 ? defaultInstallScriptSha256,
     ...
   }: let
-    resolvedConfig = resolveDotnetConfig (removeAttrs config ["outputHash" "installScriptUrl" "installScriptSha256"]);
+    resolvedConfig = resolveDotnetConfig (removeAttrs config ["outputHash" "outputHashes" "installScriptUrl" "installScriptSha256"]);
+    resolvedOutputHash =
+      if outputHash != null
+      then throw "mkDotnet no longer accepts outputHash. Use outputHashes keyed by Nix system."
+      else resolveOutputHash outputHashes;
   in
     mkDotnetSdk {
       sdkVersion = resolvedConfig.sdkVersion;
       workloads = resolvedConfig.workloads;
-      inherit outputHash installScriptUrl installScriptSha256;
+      outputHash = resolvedOutputHash;
+      inherit installScriptUrl installScriptSha256;
     };
 
   mkDotnetWithAdditional = {
     primaryConfig,
     additionalConfigs,
-    outputHash,
+    outputHash ? null,
+    outputHashes ? null,
     installScriptUrl ? defaultInstallScriptUrl,
     installScriptSha256 ? defaultInstallScriptSha256,
   }: let
     resolvedPrimary = resolveDotnetConfig primaryConfig;
+    resolvedOutputHash =
+      if outputHash != null
+      then throw "mkDotnet no longer accepts outputHash. Use outputHashes keyed by Nix system."
+      else resolveOutputHash outputHashes;
     resolvedAdditional = map resolveDotnetConfig additionalConfigs;
     additionalWithWorkloads = pkgs.lib.filter (config: config.workloads != []) resolvedAdditional;
     additionalVersions = map (config: config.sdkVersion) resolvedAdditional;
@@ -423,7 +458,8 @@
         sdkVersion = resolvedPrimary.sdkVersion;
         workloads = resolvedPrimary.workloads;
         additionalSdkVersions = additionalVersions;
-        inherit outputHash installScriptUrl installScriptSha256;
+        outputHash = resolvedOutputHash;
+        inherit installScriptUrl installScriptSha256;
       };
 
   mkDotnet = args @ {additionalSdks ? [], ...}: let
@@ -433,18 +469,19 @@
       (config:
         if builtins.hasAttr "additionalSdks" config && config.additionalSdks != []
         then throw "Nested additionalSdks are not supported. Add all SDK entries at the top-level additionalSdks list."
-        else if builtins.hasAttr "outputHash" config
-        then throw "additionalSdks entries should not set outputHash. Use top-level outputHash for the combined installation."
-        else removeAttrs config ["additionalSdks" "outputHash"])
+        else if builtins.hasAttr "outputHash" config || builtins.hasAttr "outputHashes" config
+        then throw "additionalSdks entries should not set outputHash or outputHashes. Use top-level outputHashes for the combined installation."
+        else removeAttrs config ["additionalSdks" "outputHash" "outputHashes"])
       additionalSdks;
   in
     if additionalSdks == []
     then mkDotnetSingle primaryArgs
     else
       mkDotnetWithAdditional {
-        primaryConfig = removeAttrs primaryArgs ["outputHash" "installScriptUrl" "installScriptSha256"];
+        primaryConfig = removeAttrs primaryArgs ["outputHash" "outputHashes" "installScriptUrl" "installScriptSha256"];
         additionalConfigs = normalizedAdditionalConfigs;
-        outputHash = primaryArgs.outputHash;
+        outputHash = primaryArgs.outputHash or null;
+        outputHashes = primaryArgs.outputHashes or null;
         installScriptUrl = primaryArgs.installScriptUrl or defaultInstallScriptUrl;
         installScriptSha256 = primaryArgs.installScriptSha256 or defaultInstallScriptSha256;
       };

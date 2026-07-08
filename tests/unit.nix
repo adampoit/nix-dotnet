@@ -38,17 +38,23 @@
   '';
 
   validOutputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+  validOutputHashes = {
+    x86_64-linux = validOutputHash;
+    aarch64-linux = validOutputHash;
+    x86_64-darwin = validOutputHash;
+    aarch64-darwin = validOutputHash;
+  };
 
-  mkDotnetFrom = globalJsonPath: workloads: outputHash:
+  mkDotnetFrom = globalJsonPath: workloads:
     dotnet.mkDotnet {
       inherit globalJsonPath workloads;
-      inherit outputHash;
+      outputHashes = validOutputHashes;
     };
 
-  mkDotnetFromVersion = sdkVersion: workloadVersion: workloads: outputHash:
+  mkDotnetFromVersion = sdkVersion: workloadVersion: workloads:
     dotnet.mkDotnet {
       inherit sdkVersion workloadVersion workloads;
-      inherit outputHash;
+      outputHashes = validOutputHashes;
     };
 in {
   testValidateSdkVersionBasic = {
@@ -291,42 +297,40 @@ in {
   };
 
   testMkDotnetVersionFromGlobalJson = {
-    expr = (mkDotnetFrom validGlobalJson [] validOutputHash).version;
+    expr = (mkDotnetFrom validGlobalJson []).version;
     expected = "10.0.103";
   };
 
   testMkDotnetVersionFromExplicitSdkVersion = {
-    expr = (mkDotnetFromVersion "9.0.404" null [] validOutputHash).version;
+    expr = (mkDotnetFromVersion "9.0.404" null []).version;
     expected = "9.0.404";
   };
 
   testMkDotnetPnameWithVersionedWorkloads = {
     expr =
       (mkDotnetFrom validGlobalJson [
-          "android"
-          "ios"
-        ]
-        validOutputHash).pname;
+        "android"
+        "ios"
+      ]).pname;
     expected = "dotnet-sdk-android-10.0.100.1-ios-10.0.100.1";
   };
 
   testMkDotnetPnameWithoutWorkloadVersion = {
-    expr = (mkDotnetFrom globalJsonWithoutWorkloadVersion ["android"] validOutputHash).pname;
+    expr = (mkDotnetFrom globalJsonWithoutWorkloadVersion ["android"]).pname;
     expected = "dotnet-sdk-android";
   };
 
   testMkDotnetMainProgram = {
-    expr = (mkDotnetFrom validGlobalJson [] validOutputHash).meta.mainProgram;
+    expr = (mkDotnetFrom validGlobalJson []).meta.mainProgram;
     expected = "dotnet";
   };
 
   testMkDotnetPassthruWorkloads = {
     expr =
       (mkDotnetFrom validGlobalJson [
-          "android"
-          "ios"
-        ]
-        validOutputHash).passthru.workloads;
+        "android"
+        "ios"
+      ]).passthru.workloads;
     expected = [
       {
         name = "android";
@@ -342,9 +346,8 @@ in {
   testMkDotnetPassthruWorkloadsFromExplicitWorkloadVersion = {
     expr =
       (mkDotnetFromVersion "9.0.404" "9.0.100" [
-          "android"
-        ]
-        validOutputHash).passthru.workloads;
+        "android"
+      ]).passthru.workloads;
     expected = [
       {
         name = "android";
@@ -357,7 +360,7 @@ in {
     expr =
       (dotnet.mkDotnet {
         globalJsonPath = validGlobalJson;
-        outputHash = validOutputHash;
+        outputHashes = validOutputHashes;
         installScriptUrl = "https://example.com/dotnet-install.sh";
         installScriptSha256 = "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
       }).passthru.installScriptUrl;
@@ -368,7 +371,7 @@ in {
     expr =
       (dotnet.mkDotnet {
         sdkVersion = "10.0.103";
-        outputHash = validOutputHash;
+        outputHashes = validOutputHashes;
         installScriptUrl = "https://example.com/dotnet-install.sh";
         installScriptSha256 = "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
         additionalSdks = [
@@ -380,9 +383,58 @@ in {
     expected = "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
   };
 
+  testMkDotnetAcceptsOutputHashes = {
+    expr =
+      (dotnet.mkDotnet {
+        globalJsonPath = validGlobalJson;
+        outputHashes = validOutputHashes;
+      }).passthru.outputHash;
+    expected = validOutputHash;
+  };
+
+  testMkDotnetAdditionalSdksAcceptOutputHashes = {
+    expr =
+      (dotnet.mkDotnet {
+        sdkVersion = "10.0.103";
+        outputHashes = validOutputHashes;
+        additionalSdks = [
+          {
+            sdkVersion = "9.0.404";
+          }
+        ];
+      }).passthru.outputHash;
+    expected = validOutputHash;
+  };
+
+  testMkDotnetRejectsOutputHash = {
+    expr = builtins.tryEval (builtins.seq
+      (dotnet.mkDotnet {
+        sdkVersion = "10.0.103";
+        outputHash = validOutputHash;
+      }).outPath
+      true);
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testMkDotnetRejectsMissingSystemOutputHash = {
+    expr = builtins.tryEval (builtins.seq
+      (dotnet.mkDotnet {
+        sdkVersion = "10.0.103";
+        outputHashes = {};
+      }).outPath
+      true);
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
   testMkDotnetBuildDotnetModulePackages = {
     expr = let
-      sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
+      sdk = mkDotnetFrom validGlobalJson [];
     in
       builtins.length sdk.packages == 1 && builtins.elemAt sdk.packages 0 == sdk;
     expected = true;
@@ -390,7 +442,7 @@ in {
 
   testMkDotnetBuildDotnetModuleIcu = {
     expr = let
-      sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
+      sdk = mkDotnetFrom validGlobalJson [];
     in
       sdk ? icu && sdk.icu ? outPath;
     expected = true;
@@ -398,7 +450,7 @@ in {
 
   testMkDotnetBuildDotnetModuleTargetPackages = {
     expr = let
-      sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
+      sdk = mkDotnetFrom validGlobalJson [];
     in
       sdk ? targetPackages && builtins.hasAttr "osx-arm64" sdk.targetPackages;
     expected = true;
@@ -406,7 +458,7 @@ in {
 
   testMkDotnetPassthruBuildDotnetModulePackages = {
     expr = let
-      sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
+      sdk = mkDotnetFrom validGlobalJson [];
     in
       builtins.length sdk.passthru.packages == 1 && builtins.elemAt sdk.passthru.packages 0 == sdk;
     expected = true;
@@ -414,7 +466,7 @@ in {
 
   testMkDotnetPassthruBuildDotnetModuleTargetPackages = {
     expr = let
-      sdk = mkDotnetFrom validGlobalJson [] validOutputHash;
+      sdk = mkDotnetFrom validGlobalJson [];
     in
       sdk.passthru ? targetPackages && builtins.hasAttr "osx-arm64" sdk.passthru.targetPackages;
     expected = true;
@@ -423,7 +475,7 @@ in {
   testMkDotnetRequiresVersionSource = {
     expr = builtins.tryEval (dotnet.mkDotnet {
       workloads = [];
-      outputHash = validOutputHash;
+      outputHashes = validOutputHashes;
     });
     expected = {
       success = false;
@@ -436,7 +488,7 @@ in {
       globalJsonPath = validGlobalJson;
       sdkVersion = "9.0.404";
       workloads = [];
-      outputHash = validOutputHash;
+      outputHashes = validOutputHashes;
     });
     expected = {
       success = false;
@@ -445,7 +497,7 @@ in {
   };
 
   testMkDotnetMissingSdkVersion = {
-    expr = builtins.tryEval (mkDotnetFrom globalJsonMissingSdkVersion [] validOutputHash);
+    expr = builtins.tryEval (mkDotnetFrom globalJsonMissingSdkVersion []);
     expected = {
       success = false;
       value = false;
@@ -453,7 +505,7 @@ in {
   };
 
   testMkDotnetInvalidSdkVersion = {
-    expr = builtins.tryEval (mkDotnetFrom globalJsonInvalidSdkVersion [] validOutputHash);
+    expr = builtins.tryEval (mkDotnetFrom globalJsonInvalidSdkVersion []);
     expected = {
       success = false;
       value = false;
@@ -464,7 +516,7 @@ in {
     expr =
       (dotnet.mkDotnet {
         sdkVersion = "10.0.103";
-        outputHash = validOutputHash;
+        outputHashes = validOutputHashes;
         additionalSdks = [
           {
             sdkVersion = "9.0.404";
@@ -477,7 +529,7 @@ in {
   testMkDotnetAdditionalSdksNestedRejected = {
     expr = builtins.tryEval (dotnet.mkDotnet {
       sdkVersion = "10.0.103";
-      outputHash = validOutputHash;
+      outputHashes = validOutputHashes;
       additionalSdks = [
         {
           sdkVersion = "9.0.404";
@@ -498,7 +550,7 @@ in {
   testMkDotnetAdditionalSdksRejectOutputHash = {
     expr = builtins.tryEval (dotnet.mkDotnet {
       sdkVersion = "10.0.103";
-      outputHash = validOutputHash;
+      outputHashes = validOutputHashes;
       additionalSdks = [
         {
           sdkVersion = "9.0.404";
@@ -512,10 +564,27 @@ in {
     };
   };
 
+  testMkDotnetAdditionalSdksRejectOutputHashes = {
+    expr = builtins.tryEval (dotnet.mkDotnet {
+      sdkVersion = "10.0.103";
+      outputHashes = validOutputHashes;
+      additionalSdks = [
+        {
+          sdkVersion = "9.0.404";
+          outputHashes = validOutputHashes;
+        }
+      ];
+    });
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
   testMkDotnetAdditionalSdksRejectWorkloads = {
     expr = builtins.tryEval (dotnet.mkDotnet {
       sdkVersion = "10.0.103";
-      outputHash = validOutputHash;
+      outputHashes = validOutputHashes;
       additionalSdks = [
         {
           sdkVersion = "9.0.404";
