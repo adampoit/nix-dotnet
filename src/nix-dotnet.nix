@@ -36,6 +36,19 @@
       else dotnetCoreSdk.targetPackages or {};
   };
 
+  setupHook = ''
+    dotnetSdkRoot="$(cd "$(dirname "''${BASH_SOURCE[0]}")/.." && pwd)"
+    export DOTNET_ROOT="$dotnetSdkRoot"
+
+    export DOTNET_CLI_HOME="''${DOTNET_CLI_HOME:-''${TMPDIR:-/tmp}/dotnet-cli-home}"
+    mkdir -p "$DOTNET_CLI_HOME"
+
+    export DOTNET_CLI_TELEMETRY_OPTOUT="''${DOTNET_CLI_TELEMETRY_OPTOUT:-1}"
+    export DOTNET_NOLOGO="''${DOTNET_NOLOGO:-1}"
+    export DOTNET_SKIP_FIRST_TIME_EXPERIENCE="''${DOTNET_SKIP_FIRST_TIME_EXPERIENCE:-1}"
+    export DOTNET_GENERATE_ASPNET_CERTIFICATE="''${DOTNET_GENERATE_ASPNET_CERTIFICATE:-0}"
+  '';
+
   finalizeRawSdk = rawSdk:
     if pkgs.stdenv.isLinux
     then let
@@ -72,7 +85,7 @@
 
           for entry in "$out/.runtime"/*; do
             name="$(basename "$entry")"
-            if [ "$name" != "bin" ] && [ "$name" != "dotnet" ]; then
+            if [ "$name" != "bin" ] && [ "$name" != "dotnet" ] && [ "$name" != "nix-support" ]; then
               ln -s ".runtime/$name" "$out/$name"
             fi
           done
@@ -82,6 +95,12 @@
             'export LD_LIBRARY_PATH="${dotnetLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"' \
             'script_dir="$(cd "$(dirname "$0")" && pwd)"' \
             'export DOTNET_ROOT="$script_dir"' \
+            'export DOTNET_CLI_HOME="''${DOTNET_CLI_HOME:-''${TMPDIR:-/tmp}/dotnet-cli-home}"' \
+            'mkdir -p "$DOTNET_CLI_HOME"' \
+            'export DOTNET_CLI_TELEMETRY_OPTOUT="''${DOTNET_CLI_TELEMETRY_OPTOUT:-1}"' \
+            'export DOTNET_NOLOGO="''${DOTNET_NOLOGO:-1}"' \
+            'export DOTNET_SKIP_FIRST_TIME_EXPERIENCE="''${DOTNET_SKIP_FIRST_TIME_EXPERIENCE:-1}"' \
+            'export DOTNET_GENERATE_ASPNET_CERTIFICATE="''${DOTNET_GENERATE_ASPNET_CERTIFICATE:-0}"' \
             'exec "$script_dir/.runtime/dotnet" "$@"' \
             > "$out/dotnet"
           chmod +x "$out/dotnet"
@@ -94,6 +113,11 @@
             > "$out/bin/dotnet"
           chmod +x "$out/bin/dotnet"
 
+          mkdir -p "$out/nix-support"
+          cat > "$out/nix-support/setup-hook" <<'EOF'
+          ${setupHook}
+          EOF
+
           chmod -R a-w "$out"
 
           runHook postInstall
@@ -104,7 +128,36 @@
       };
     in
       finalSdk
-    else rawSdk;
+    else let
+      finalSdk = pkgs.stdenv.mkDerivation {
+        pname = rawSdk.pname;
+        inherit (rawSdk) version;
+
+        src = rawSdk;
+        dontUnpack = true;
+
+        installPhase = ''
+          runHook preInstall
+
+          mkdir -p "$out"
+          cp -a "$src/." "$out/"
+          chmod -R u+w "$out"
+
+          mkdir -p "$out/nix-support"
+          cat > "$out/nix-support/setup-hook" <<'EOF'
+          ${setupHook}
+          EOF
+
+          chmod -R a-w "$out"
+
+          runHook postInstall
+        '';
+
+        passthru = rawSdk.passthru // {inherit rawSdk;} // buildDotnetModulePassthru finalSdk rawSdk.version;
+        meta = rawSdk.meta;
+      };
+    in
+      finalSdk;
 
   mkDotnetSdk = {
     sdkVersion,

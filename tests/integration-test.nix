@@ -23,13 +23,11 @@ in
     buildPhase = ''
       runHook preBuild
 
-      # Use absolute paths for .NET CLI environment
-      export DOTNET_CLI_HOME="$PWD/.dotnet-cli-home"
+      # Use absolute paths for NuGet caches while relying on mkDotnet's setup hook for DOTNET_CLI_HOME.
       export NUGET_PACKAGES="$PWD/.nuget/packages"
       export NUGET_HTTP_CACHE_PATH="$PWD/.nuget/http-cache"
-      export HOME="$PWD/.home"
 
-      mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH" "$HOME"
+      mkdir -p "$NUGET_PACKAGES" "$NUGET_HTTP_CACHE_PATH"
 
       echo "=== Integration Test: Building .NET Project ==="
       echo "dotnet on PATH: $(command -v dotnet)"
@@ -44,6 +42,16 @@ in
 
       if [ "$DOTNET_ROOT" != "${dotnetSdk}" ]; then
         echo "ERROR: DOTNET_ROOT was not exported by the setup hook"
+        exit 1
+      fi
+
+      if [ -z "''${DOTNET_CLI_HOME:-}" ] || [ ! -d "$DOTNET_CLI_HOME" ]; then
+        echo "ERROR: DOTNET_CLI_HOME was not created by the setup hook"
+        exit 1
+      fi
+
+      if [ "''${DOTNET_CLI_TELEMETRY_OPTOUT:-}" != "1" ] || [ "''${DOTNET_NOLOGO:-}" != "1" ]; then
+        echo "ERROR: reproducibility-friendly .NET defaults were not exported by the setup hook"
         exit 1
       fi
 
