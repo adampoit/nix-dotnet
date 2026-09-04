@@ -8,6 +8,7 @@
     buildWorkloadNames
     buildWorkloadPnameSuffix
     buildWorkloadCommands
+    buildRemoveReferencesCommand
     sanitizePname
     validateOutputHash
     readGlobalJson
@@ -116,7 +117,17 @@
         src = rawSdk;
         dontUnpack = true;
 
-        nativeBuildInputs = [pkgs.patchelf];
+        nativeBuildInputs = [pkgs.autoPatchelfHook];
+        buildInputs = [
+          pkgs.stdenv.cc.cc
+          pkgs.zlib
+          pkgs.icu
+          pkgs.openssl
+          pkgs.lttng-ust_2_12
+        ];
+        dontPatchELF = true;
+        dontAutoPatchelf = true;
+        autoPatchelfIgnoreMissingDeps = ["*"];
 
         installPhase = ''
           runHook preInstall
@@ -125,20 +136,7 @@
           cp -a "$src" "$out/.runtime"
           chmod -R u+w "$out/.runtime"
 
-          while IFS= read -r -d $'\0' file; do
-            if patchelf --print-rpath "$file" >/dev/null 2>&1; then
-              if patchelf --print-interpreter "$file" >/dev/null 2>&1; then
-                patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$file"
-              fi
-
-              currentRpath="$(patchelf --print-rpath "$file" 2>/dev/null || true)"
-              if [ -n "$currentRpath" ]; then
-                patchelf --set-rpath "${dotnetLibraryPath}:$currentRpath" "$file"
-              else
-                patchelf --set-rpath "${dotnetLibraryPath}" "$file"
-              fi
-            fi
-          done < <(find "$out/.runtime" -type f -print0)
+          autoPatchelf "$out/.runtime"
 
           for entry in "$out/.runtime"/*; do
             name="$(basename "$entry")"
@@ -231,6 +229,7 @@
     workloadNames = buildWorkloadNames validatedWorkloads;
     workloadPnameSuffix = buildWorkloadPnameSuffix validatedWorkloads;
     workloadCommands = buildWorkloadCommands validatedWorkloads;
+    removeReferencesCommand = buildRemoveReferencesCommand pkgs.stdenv.isDarwin;
     hasAdditionalSdks = validatedAdditionalSdkVersions != [];
     additionalSdkPnameSuffix =
       if hasAdditionalSdks
@@ -372,10 +371,7 @@
           done
         fi
 
-        echo "Removing remaining self-references from output..."
-        find "$out" -type f 2>/dev/null | while read f; do
-          remove-references-to -t "$out" "$f" 2>/dev/null || true
-        done
+        ${removeReferencesCommand}
 
         runHook postBuild
       '';

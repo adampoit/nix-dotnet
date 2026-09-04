@@ -192,6 +192,26 @@ in {
     '';
   };
 
+  testRemoveReferencesCommandFiltersAndBatchesLinuxFiles = {
+    expr = lib.buildRemoveReferencesCommand false;
+    expected = ''
+      echo "Removing remaining self-references from output..."
+      storeId="''${out#/nix/store/}"
+      storeId="''${storeId%%-*}"
+      grep --recursive --files-with-matches --fixed-strings --null "$storeId" "$out" 2>/dev/null \
+        | xargs --null --no-run-if-empty --max-args=256 remove-references-to -t "$out" \
+        || true
+    '';
+  };
+
+  testRemoveReferencesCommandBatchesDarwinFiles = {
+    expr = lib.buildRemoveReferencesCommand true;
+    expected = ''
+      echo "Removing remaining self-references from output..."
+      find "$out" -type f -exec remove-references-to -t "$out" '{}' + 2>/dev/null || true
+    '';
+  };
+
   testSanitizePnameBasic = {
     expr = lib.sanitizePname "dotnet-sdk-10.0.100-none-packs";
     expected = "dotnet-sdk-10.0.100-none-packs";

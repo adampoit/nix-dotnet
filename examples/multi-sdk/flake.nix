@@ -1,7 +1,10 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nix-dotnet.url = "github:adampoit/nix-dotnet";
+    nix-dotnet = {
+      url = "github:adampoit/nix-dotnet";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {

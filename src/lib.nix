@@ -54,6 +54,22 @@ in {
         '')
         workloads);
 
+  # Darwin's remove-references-to also re-signs Mach-O files, including files without self-references.
+  buildRemoveReferencesCommand = isDarwin:
+    if isDarwin
+    then ''
+      echo "Removing remaining self-references from output..."
+      find "$out" -type f -exec remove-references-to -t "$out" '{}' + 2>/dev/null || true
+    ''
+    else ''
+      echo "Removing remaining self-references from output..."
+      storeId="''${out#/nix/store/}"
+      storeId="''${storeId%%-*}"
+      grep --recursive --files-with-matches --fixed-strings --null "$storeId" "$out" 2>/dev/null \
+        | xargs --null --no-run-if-empty --max-args=256 remove-references-to -t "$out" \
+        || true
+    '';
+
   sanitizePname = name: let
     unsafeChars = ["@" " " "/" "\\" "*" "?" "<" ">" "|"];
     replaceUnsafe = c: str: replaceStrings [c] ["_"] str;

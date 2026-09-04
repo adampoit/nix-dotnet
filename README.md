@@ -22,7 +22,10 @@ A Nix module that builds reproducible .NET SDK derivations from `global.json` or
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nix-dotnet.url = "github:adampoit/nix-dotnet";
+    nix-dotnet = {
+      url = "github:adampoit/nix-dotnet";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = { self, nixpkgs, nix-dotnet }:
@@ -47,6 +50,8 @@ A Nix module that builds reproducible .NET SDK derivations from `global.json` or
     };
 }
 ```
+
+Following the application's `nixpkgs` input avoids pulling a second package set for nix-dotnet's build-time dependencies.
 
 ## API Reference
 
